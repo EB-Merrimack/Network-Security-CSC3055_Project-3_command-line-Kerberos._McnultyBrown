@@ -1,3 +1,5 @@
+package common;
+
 /*
  *   Copyright (C) 2022 -- 2023  Zachary A. Kissel
  *
