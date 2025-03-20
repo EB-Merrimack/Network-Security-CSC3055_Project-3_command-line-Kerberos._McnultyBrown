@@ -4,6 +4,9 @@
 # Log file
 *.log
 
+#ignore ant created files
+/.dist*
+/build*
 # BlueJ files
 *.ctxt
 
