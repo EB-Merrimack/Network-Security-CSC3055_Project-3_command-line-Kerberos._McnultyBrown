@@ -1,106 +1,65 @@
 package echoservice;
-
-import merrimackutil.json.JsonIO;
-import merrimackutil.util.NonceCache;
-import merrimackutil.json.types.JSONType;
-import merrimackutil.json.types.JSONObject;
-
-
-import java.io.*;
+/*
+ *   Copyright (C) 2022 -- 2023  Zachary A. Kissel
+ *
+ *   This program is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 3 of the License, or
+ *   (at your option) any later version.
+ *
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+import java.io.PrintWriter;
 import java.net.Socket;
-import java.util.Base64;
 import java.util.Scanner;
-import CryptoUtils;
+import java.io.IOException;
 
-public class ConnectionHandler implements Runnable {
-    private final Socket sock;
-    private final String serviceSecret;
-    private final NonceCache nonceCache;
+/**
+ * Handles a single connection.
+ * @author Zach Kissel
+ */
+public class ConnectionHandler implements Runnable
+{
+    private Socket sock;
 
     /**
-     * Creates a new connection handler.
+     * Creates a new conneciton handler 
      * @param sock the socket associated with the connection.
-     * @param serviceSecret the shared service secret for encryption.
-     * @param nonceCache the shared nonce cache for replay prevention.
      */
-    public ConnectionHandler(Socket sock, String serviceSecret, NonceCache nonceCache) {
+    public ConnectionHandler(Socket sock)
+    {
         this.sock = sock;
-        this.serviceSecret = serviceSecret;
-        this.nonceCache = nonceCache;
     }
 
     /**
-     * Handles the client connection.
+     * How to handle the connection
      */
-    public void run() {
-        try (
+    public void run() 
+    {
+        try
+        {
+            // Setup the streams for use.
             Scanner recv = new Scanner(sock.getInputStream());
-            PrintWriter send = new PrintWriter(sock.getOutputStream(), true)
-        ) {
-            // Step 1: Receive JSON Message
-            String jsonMessage = recv.nextLine();
-            JSONObject receivedMessage = parseJsonMessage(jsonMessage);
+            PrintWriter send = new PrintWriter(sock.getOutputStream(), true);
 
-            // Step 2: Verify nonce
-            byte[] nonce = Base64.getDecoder().decode((String) receivedMessage.get("nonce"));
-            if (nonceCache.containsNonce(nonce)) {
-                System.out.println("Replay detected! Closing connection.");
-                sendErrorMessage(send, "ERROR: Replay attack detected.");
-                return;
-            }
-            nonceCache.addNonce(nonce);
+            // Get the line from the client.
+            String line = recv.nextLine();
 
-            // Step 3: Decrypt message
-            String encryptedMessage = (String) receivedMessage.get("message");
-            String decryptedMessage = CryptoUtils.decryptAESGCM(encryptedMessage, serviceSecret);
+            // Echo the line back.
+            send.println(line.toUpperCase());
 
-            // Step 4: Transform message (to uppercase)
-            String transformedMessage = deczryptedMessage.toUpperCase();
-
-            // Step 5: Encrypt the transformed message
-            String encryptedResponse = CryptoUtils.encryptAESGCM(transformedMessage, serviceSecret);
-
-            // Step 6: Send JSON Response
-            JSONObject response = createResponseJson(encryptedResponse);
-            JsonIO.writeSerializedObject(response, send);
-
-        } catch (Exception e) {
-            System.err.println("Connection error: " + e.getMessage());
-        } finally {
-            try {
-                sock.close();
-            } catch (IOException ignored) {}
+            // Close the connection.
+            sock.close();
         }
-    }
-
-    /**
-     * Parses the incoming JSON message.
-     */
-    private JSONObject parseJsonMessage(String jsonMessage) {
-        try {
-            return (JSONObject) new org.json.simple.parser.JSONParser().parse(jsonMessage);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to parse JSON message: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Creates a response JSON with the encrypted message.
-     */
-    private JSONObject createResponseJson(String encryptedMessage) {
-        JSONObject response = new JSONObject();
-        response.put("type", "response");
-        response.put("message", encryptedMessage);
-        return response;
-    }
-
-    /**
-     * Sends an error message as a JSON response.
-     */
-    private void sendErrorMessage(PrintWriter send, String errorMessage) {
-        JSONObject errorResponse = new JSONObject();
-        errorResponse.put("type", "error");
-        errorResponse.put("message", errorMessage);
-        JsonIO.writeSerializedObject(errorResponse, send);
+        catch (IOException ex)
+        {
+            ex.printStackTrace();
+        }    
     }
 }

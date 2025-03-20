@@ -1,51 +1,86 @@
-import java.io.FileReader;
+package echoservice;
+
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import merrimackutil.util.NonceCache;
 
-public class EchoService {
-    private static final int MAX_THREADS = 10;
-    private final String serviceName;
-    private final String serviceSecret;
+/**
+ * EchoService to handle incoming client connections.
+ */
+public class EchoService
+{
     private final int port;
-    private final NonceCache nonceCache;
-    private final ExecutorService executor;
+    private ServerSocket serverSocket;
+    private final ExecutorService executorService;
 
-    public EchoService(String configFile) throws Exception {
-        // Load JSON config
-        JSONObject config = (JSONObject) new JSONParser().parse(new FileReader(configFile));
-        this.serviceName = (String) config.get("service-name");
-        this.serviceSecret = (String) config.get("service-secret");
-        this.port = ((Long) config.get("port")).intValue();
-
-        // Initialize NonceCache (16-byte nonces, 60s validity)
-        this.nonceCache = new NonceCache(16, 60);
-        this.executor = Executors.newFixedThreadPool(MAX_THREADS);
+    /**
+     * Constructor to initialize the echo service.
+     * @param port the port the service should listen on.
+     */
+    public EchoService(int port)
+    {
+        this.port = port;
+        this.executorService = Executors.newFixedThreadPool(10); // Maximum 10 simultaneous connections.
     }
 
-    public void start() {
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println(serviceName + " running on port " + port);
-            while (true) {
+    /**
+     * Starts the echo service.
+     */
+    public void start() throws IOException
+    {
+        serverSocket = new ServerSocket(port);
+        System.out.println("EchoService started on port " + port);
+
+        // Loop to accept incoming client connections.
+        while (true)
+        {
+            try
+            {
+                // Accept a new client connection.
                 Socket clientSocket = serverSocket.accept();
-                executor.execute(new ConnectionHandler(clientSocket, serviceSecret, nonceCache));
+
+                // Create a new ConnectionHandler for this client.
+                ConnectionHandler handler = new ConnectionHandler(clientSocket);
+
+                // Submit the handler to the executor for processing.
+                executorService.submit(handler);
             }
-        } catch (Exception e) {
-            System.err.println("Server error: " + e.getMessage());
-        } finally {
-            executor.shutdown();
+            catch (IOException e)
+            {
+                System.err.println("Error while accepting connection: " + e.getMessage());
+            }
         }
     }
 
-    public static void main(String[] args) {
-        try {
-            new EchoService("config.json").start();
-        } catch (Exception e) {
-            System.err.println("Failed to start server: " + e.getMessage());
+    /**
+     * Stops the echo service.
+     */
+    public void stop() throws IOException
+    {
+        if (serverSocket != null && !serverSocket.isClosed())
+        {
+            serverSocket.close();
+            executorService.shutdown();
+            System.out.println("EchoService stopped.");
+        }
+    }
+
+    public static void main(String[] args)
+    {
+        try
+        {
+            // Set the port for the echo service (e.g., 12345).
+            int port = 5000;
+            EchoService service = new EchoService(port);
+
+            // Start the service.
+            service.start();
+        }
+        catch (IOException e)
+        {
+            System.err.println("Failed to start EchoService: " + e.getMessage());
         }
     }
 }
