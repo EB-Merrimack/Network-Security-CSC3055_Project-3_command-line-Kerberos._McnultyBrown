@@ -2,13 +2,15 @@ package echoservice;
 
 import merrimackutil.json.JsonIO;
 import merrimackutil.util.NonceCache;
+import merrimackutil.json.types.JSONType;
 import merrimackutil.json.types.JSONObject;
-import common.CryptoUtils;
+
 
 import java.io.*;
 import java.net.Socket;
 import java.util.Base64;
 import java.util.Scanner;
+import CryptoUtils;
 
 public class ConnectionHandler implements Runnable {
     private final Socket sock;
@@ -53,7 +55,7 @@ public class ConnectionHandler implements Runnable {
             String decryptedMessage = CryptoUtils.decryptAESGCM(encryptedMessage, serviceSecret);
 
             // Step 4: Transform message (to uppercase)
-            String transformedMessage = decryptedMessage.toUpperCase();
+            String transformedMessage = deczryptedMessage.toUpperCase();
 
             // Step 5: Encrypt the transformed message
             String encryptedResponse = CryptoUtils.encryptAESGCM(transformedMessage, serviceSecret);
