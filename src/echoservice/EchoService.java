@@ -24,6 +24,16 @@ public class EchoService
         this.port = port;
         this.executorService = Executors.newFixedThreadPool(10); // Maximum 10 simultaneous connections.
     }
+    public static void usageClient() {
+        System.out.println("usage:");
+      System.out.println("echoservice");
+      System.out.println("echoservice --config <configfile>");
+      System.out.println("echoservice --help");
+      System.out.println("options:");
+      System.out.println("  -c, --config Set the config file.");
+      System.out.println("  -h, --help Display the help.");
+        System.exit(1);
+    }
 
     /**
      * Starts the echo service.
