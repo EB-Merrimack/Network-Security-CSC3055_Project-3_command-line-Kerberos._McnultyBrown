@@ -18,14 +18,10 @@ package echoservice;
  */
 import java.net.Socket;
 import java.net.ServerSocket;
-import java.util.Scanner;
-import java.io.PrintWriter;
 import java.io.IOException;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import echoservice.ConnectionHandler;
 
 public class EchoService{
   
