@@ -4,6 +4,7 @@ import merrimackutil.exception.BadFileFormatException;
 import merrimackutil.util.Tuple;
 import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
+
 import java.io.FileNotFoundException;
 import java.io.File;
 import java.io.InvalidObjectException;
@@ -12,12 +13,13 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Scanner;
+
+import common.TicketRequest;
 
 /**
- * This class implements the view and controller for the secrets vault.
  * This is adapted to manage the service, daemon, and client with configuration and help options.
  * 
- * @author Zach Kissel
  */
 public class Driver {
   
@@ -29,6 +31,11 @@ public class Driver {
   private static String hostsFile = null;
   private static String user = null;
   private static String service = null;
+
+  // Example list of available services, including the ticket request option
+  private static String[] availableServices = {
+    "kdcclient", "echoservice", "ticketrequest", "kdcconfig"
+  };
 
   /**
    * Display the usage message and fatally exit.
@@ -142,6 +149,74 @@ public class Driver {
   }
 
   /**
+   * Simulate receiving and processing a TicketRequest.
+   */
+  public static void processTicketRequest(String service, String user) {
+    // Simulate creating a TicketRequest
+    TicketRequest ticketRequest = new TicketRequest(service, user);
+
+    // Print the ticket request as JSON
+    System.out.println("Received TicketRequest: " + ticketRequest.toJSON());
+
+    // Here, you could implement logic to handle the ticket request
+    // such as verifying the user or performing authentication.
+  }
+
+  /**
+   * Simulate displaying KDC Configuration options.
+   */
+  public static void viewKdcConfig() {
+    // Simulate loading and displaying KDC configuration
+    System.out.println("Displaying KDC Configuration Options:");
+
+    // Here you would load the actual configuration (e.g., from a file)
+    // For demonstration purposes, we'll just show some sample configurations
+    System.out.println("KDC Configuration:");
+    System.out.println(" - KDC Host: kdc.example.com");
+    System.out.println(" - Default Realm: EXAMPLE.COM");
+    System.out.println(" - Encryption Types: AES256-SHA256, RC4-HMAC");
+    System.out.println(" - Maximum Ticket Lifetime: 24 hours");
+  }
+
+  /**
+   * Present the user with available service options and handle ticket request.
+   */
+  public static void requestTicketFromService() {
+    Scanner scanner = new Scanner(System.in);
+    System.out.println("Available Services:");
+    for (int i = 0; i < availableServices.length; i++) {
+      System.out.println((i + 1) + ". " + availableServices[i]);
+    }
+
+    System.out.print("Select a service by entering the number (1-" + availableServices.length + "): ");
+    int choice = scanner.nextInt();
+
+    if (choice < 1 || choice > availableServices.length) {
+      System.out.println("Invalid choice. Exiting.");
+      System.exit(1);
+    }
+
+    String selectedService = availableServices[choice - 1];
+    System.out.println("You selected: " + selectedService);
+
+    if ("ticketrequest".equals(selectedService)) {
+      // Handle ticket request specifically
+      System.out.print("Enter your username for the ticket request: ");
+      scanner.nextLine();  // consume the newline
+      String username = scanner.nextLine();
+
+      // Process ticket request for the selected service and username
+      processTicketRequest(selectedService, username);
+    } else if ("kdcconfig".equals(selectedService)) {
+      // Handle KDC configuration display
+      viewKdcConfig();
+    } else {
+      // Continue with other service logic (e.g., kdcclient, echoservice)
+      System.out.println("Running selected service: " + selectedService);
+    }
+  }
+
+  /**
    * Main entry point for the application (service, daemon, or client).
    * 
    * @param args the array of command line arguments.
@@ -171,8 +246,12 @@ public class Driver {
       System.out.println("Client running with user: " + user + ", service: " + service);
     } else if (program.equals("echoservice")) {
       System.out.println("Service running with config: " + configFile);
+      // Here we initiate the service program logic
     } else {
       System.out.println("KDC Daemon running with config: " + configFile);
     }
+
+    // Request a ticket for the selected service (if this is part of the service flow)
+    requestTicketFromService();
   }
 }
