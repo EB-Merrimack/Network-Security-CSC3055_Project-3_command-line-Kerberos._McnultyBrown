@@ -7,6 +7,7 @@
 #ignore ant created files
 /.dist*
 /build*
+/dist*
 # BlueJ files
 *.ctxt
 
