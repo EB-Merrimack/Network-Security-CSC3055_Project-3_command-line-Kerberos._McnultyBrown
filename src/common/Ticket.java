@@ -1,22 +1,23 @@
 package common;
 
 public class Ticket {
-    private String encryptedKey;
     private long creationTime;
-    private long validityPeriod;
-    private String id;
+    private long validityTime;   // Validity time in milliseconds
+    private String username;
     private String service;
-    private String iv;
+    private String iv;           // IV for encryption
+    private String encryptedSessionKey;
+
+    public Ticket(String username, String service, long validityTime, String iv, String encryptedSessionKey) {
+        this.creationTime = System.currentTimeMillis();
+        this.validityTime = validityTime;
+        this.username = username;
+        this.service = service;
+        this.iv = iv;
+        this.encryptedSessionKey = encryptedSessionKey;
+    }
 
     // Getters and setters
-    public String getEncryptedKey() {
-        return encryptedKey;
-    }
-
-    public void setEncryptedKey(String encryptedKey) {
-        this.encryptedKey = encryptedKey;
-    }
-
     public long getCreationTime() {
         return creationTime;
     }
@@ -25,20 +26,20 @@ public class Ticket {
         this.creationTime = creationTime;
     }
 
-    public long getValidityPeriod() {
-        return validityPeriod;
+    public long getValidityTime() {
+        return validityTime;
     }
 
-    public void setValidityPeriod(long validityPeriod) {
-        this.validityPeriod = validityPeriod;
+    public void setValidityTime(long validityTime) {
+        this.validityTime = validityTime;
     }
 
-    public String getId() {
-        return id;
+    public String getUsername() {
+        return username;
     }
 
-    public void setId(String id) {
-        this.id = id;
+    public void setUsername(String username) {
+        this.username = username;
     }
 
     public String getService() {
@@ -55,5 +56,23 @@ public class Ticket {
 
     public void setIv(String iv) {
         this.iv = iv;
+    }
+
+    public String getEncryptedSessionKey() {
+        return encryptedSessionKey;
+    }
+
+    public void setEncryptedSessionKey(String encryptedSessionKey) {
+        this.encryptedSessionKey = encryptedSessionKey;
+    }
+
+    // Utility to serialize Ticket to JSON string
+    public String toJson() {
+        return "{ \"creationTime\": " + creationTime + ", " +
+               "\"validityTime\": " + validityTime + ", " +
+               "\"username\": \"" + username + "\", " +
+               "\"service\": \"" + service + "\", " +
+               "\"iv\": \"" + iv + "\", " +
+               "\"encryptedSessionKey\": \"" + encryptedSessionKey + "\" }";
     }
 }
