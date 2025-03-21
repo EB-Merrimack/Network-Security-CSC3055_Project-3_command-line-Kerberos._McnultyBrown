@@ -14,7 +14,7 @@ public class KDCClient {
     private static String user = null;
     private static String service = null;
     private static final String KDC_HOST = "127.0.0.1";
-    private static final int KDC_PORT = 5000;
+    private static final int KDC_PORT = 5001;
     
     
     public static void usageClient() {
