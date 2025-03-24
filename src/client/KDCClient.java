@@ -1,6 +1,7 @@
 package client;
 
 import java.io.Console;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
@@ -9,14 +10,18 @@ import java.util.Scanner;
 
 import merrimackutil.cli.LongOption;
 import merrimackutil.cli.OptionParser;
+import merrimackutil.json.types.JSONArray;
+import merrimackutil.json.types.JSONObject;
+import merrimackutil.net.hostdb.HostsDatabase;
 import merrimackutil.util.Tuple;
+
 public class KDCClient {
     private static String user = null;
     private static String service = null;
-    private static final String KDC_HOST = "127.0.0.1";
-    private static final int KDC_PORT = 5001;
-    
-    
+    private static HostsDatabase hostsDb;
+    private static String kdcHost;
+    private static int kdcPort;
+
     public static void usageClient() {
         System.out.println("usage: ");
         System.out.println("    client --hosts <hostfile> --user <user> --service <service>");
@@ -27,101 +32,134 @@ public class KDCClient {
         System.out.println("    -s, --service The name of the service.");
         System.exit(1);
     }
-    
-    /**
-    * This method prompts for a username and returns the username to the
-    * caller.
-    *
-    * @return A non-empty username as a string.
-    */
+
     public static String promptForUsername(String msg) {
         String usrnm;
         Console cons = System.console();
-    
-        do{
+
+        do {
             usrnm = new String(cons.readLine(msg + ": "));
         } while (usrnm.isEmpty());
-    
+
         return usrnm;
     }
-    
-    /**
-    * This method prompts for a password and returns the password to the
-    * caller.
-    *
-    * @return A non-empty password as a string.
-    */
+
     public static String promptForPassword(String msg) {
         String passwd;
         Console cons = System.console();
-    
-        do{
+
+        do {
             passwd = new String(cons.readPassword(msg + ": "));
         } while (passwd.isEmpty());
-    
+
         return passwd;
     }
-    
-    /**
-    * Process the command line arguments.
-    * 
-    * @param args the array of command line arguments.
-    */
+
     public static void processArgs(String[] args) {
         OptionParser parser;
-    
+
         LongOption[] opts = new LongOption[3];
         opts[0] = new LongOption("hosts", false, 'h');
         opts[1] = new LongOption("user", true, 'u');
         opts[2] = new LongOption("service", true, 's');
-    
+
         Tuple<Character, String> currOpt;
-    
+
         parser = new OptionParser(args);
         parser.setLongOpts(opts);
         parser.setOptString("hu:s");
-    
+
         while (parser.getOptIdx() != args.length) {
             currOpt = parser.getLongOpt(false);
-    
+
             switch (currOpt.getFirst()) {
                 case 'h':
-                  //doHost = true;
-                  break;
+                    // Optionally support setting custom hosts file here
+                    break;
                 case 'u':
-                  user = currOpt.getSecond();
-                  break;
+                    user = currOpt.getSecond();
+                    break;
                 case 's':
-                  service = currOpt.getSecond();
-                  break;
+                    service = currOpt.getSecond();
+                    break;
             }
         }
     }
-    
-    public static boolean authenticateWithKDC(String username, String password) {
-        try (Socket socket = new Socket(KDC_HOST, KDC_PORT);
-                PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-                Scanner in = new Scanner(socket.getInputStream())) {
-    
-            // Send authentication claim
+
+    public static Tuple<String, Integer> getHostInfo(String hostName) {
+        File file = new File("hosts.json");
+
+        // Step 1: If file doesn't exist, create a default one
+        if (!file.exists()) {
+            try {
+                System.out.println("Creating default hosts.json...");
+
+                JSONObject kdcObj = new JSONObject();
+                kdcObj.put("host-name", "kdcd");
+                kdcObj.put("address", "127.0.0.1");
+                kdcObj.put("port", 5000);
+
+                JSONArray hostArray = new JSONArray();
+                hostArray.add(kdcObj);
+
+                JSONObject root = new JSONObject();
+                root.put("hosts", hostArray);
+
+                try (PrintWriter writer = new PrintWriter(file)) {
+                    writer.println(root.getFormattedJSON());
+                    System.out.println("✅ hosts.json created manually before loading.");
+                }
+
+            } catch (IOException e) {
+                System.err.println("❌ Failed to create hosts.json: " + e.getMessage());
+                System.exit(1);
+            }
+        }
+
+        // Step 2: Load host info
+        try {
+            HostsDatabase db = new HostsDatabase(file);
+
+            if (!db.hostKnown(hostName)) {
+                System.err.println("Unknown host: " + hostName);
+                System.exit(1);
+            }
+
+            String address = db.getAddress(hostName);
+            int port = db.getPort(hostName);
+            return new Tuple<>(address, port);
+
+        } catch (Exception e) {
+            System.err.println("Error loading host file: " + e.getMessage());
+            System.exit(1);
+            return null;
+        }
+    }
+
+    public static boolean authenticateWithKDC(String username, String password, String host, int port) {
+        try (Socket socket = new Socket(host, port);
+             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+             Scanner in = new Scanner(socket.getInputStream())) {
+
+            // Message 1: Send authentication claim
             out.println("{\"type\": \"claim\", \"username\": \"" + username + "\"}");
-                
-            // Receive challenge from KDC
+
+            // Message 2: Receive challenge from KDC
             String response = in.nextLine();
             if (response.contains("failure")) {
                 System.out.println("Authentication failed: User not found");
                 return false;
             }
             String challenge = response.split(":")[1].replace("}", "");
-                
-            // Compute response hash (SHA-256(password + challenge))
+
+            // Message 3: Compute response hash (SHA-256(password + challenge))
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest((password + challenge).getBytes());
-                
+
             // Send response hash to KDC
             out.println("{\"type\": \"response\", \"hash\": \"" + bytesToHex(hash) + "\"}");
-                
-            // Receive authentication result
+
+            // Message 4: Receive authentication result
             String result = in.nextLine();
             if (result.contains("success")) {
                 System.out.println("Authentication successful");
@@ -135,7 +173,7 @@ public class KDCClient {
             return false;
         }
     }
-    
+
     public static String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
@@ -143,17 +181,25 @@ public class KDCClient {
         }
         return sb.toString();
     }
-    
+
     public static void main(String[] args) {
         processArgs(args);
+
         if (user == null) {
             user = promptForUsername("Enter username");
         }
+
         String password = promptForPassword("Enter password");
-            
-        if (authenticateWithKDC(user, password)) {
+
+        // 🔐 Load KDC host info (forces hosts.json to be created if needed)
+        Tuple<String, Integer> kdcHostInfo = getHostInfo("kdcd");
+        kdcHost = kdcHostInfo.getFirst();
+        kdcPort = kdcHostInfo.getSecond();
+
+        // 🔒 Run CHAP protocol
+        if (authenticateWithKDC(user, password, kdcHost, kdcPort)) {
             System.out.println("Proceeding to session key request...");
-            // Next step: Request session key
+            // 🚧 TODO: Implement session key request next
         }
     }
 }
