@@ -14,8 +14,9 @@ import merrimackutil.util.NonceCache;
 public class KDCServer {
     private static Config config;
     private static Map<String, String> secrets = new HashMap<>();
-    private static NonceCache nonceCache;  // NonceCache to store nonces
-
+    private static NonceCache nonceCache;  
+    private static final String DEFAULT_CONFIG_FILE = "src/kdcd/config.json";
+    
     public static void usageClient() {
         System.out.println("usage:");
         System.out.println("kdcd");
@@ -28,9 +29,8 @@ public class KDCServer {
     }
 
     public static void main(String[] args) {
-        if (args.length == 0) {
-            // If no arguments are passed, check for a config file and load it.
-            loadConfig();
+        if (args.length == 0 || args[0].equals("kdcd")) {
+            loadConfig(getCachedConfigPath().orElse(DEFAULT_CONFIG_FILE));
             startServer();
         } else if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
             loadConfig(args[1]);
@@ -46,50 +46,60 @@ public class KDCServer {
     private static void startServer() {
         System.out.println("Starting KDC server on port " + config.port);
         try (ServerSocket serverSocket = new ServerSocket(config.port)) {
-            // Thread pool to handle multiple connections.
             ExecutorService executorService = Executors.newFixedThreadPool(10);
+            nonceCache = new NonceCache(16, 60); 
 
-            // Initialize the NonceCache (with size and age limit from config or defaults)
-            nonceCache = new NonceCache(16, 60); // Example: 16-byte nonces and 60 seconds validity period
-            
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                System.out.println("Shutting down KDC server...");
+                executorService.shutdown();
+                try {
+                    if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                        executorService.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
+                    executorService.shutdownNow();
+                }
+            }));
+
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                // Pass the secrets map and client socket to each handler
-                executorService.submit(new ConnectionHandler(clientSocket, nonceCache)); // Pass nonceCache to handler
+                executorService.submit(new ConnectionHandler(clientSocket, nonceCache)); 
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static void loadConfig() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.print("Config file not provided. Please enter the path to the configuration file: ");
-        String configFile = scanner.nextLine();
-        loadConfig(configFile);
-    }
-
     private static void loadConfig(String configFile) {
         try {
-            // Read the configuration file to get server settings.
             File file = new File(configFile);
             if (!file.exists()) {
-                throw new FileNotFoundException("Configuration file not found: " + configFile);
+                System.err.println("Config file not found: " + configFile);
+                configFile = promptForConfigFile();
             }
 
-            // Parse the config as a JSONObject.
-            JSONObject configJson = JsonIO.readObject(file);
+            JSONObject configJson = JsonIO.readObject(new File(configFile));
             if (configJson == null) {
                 throw new IOException("Error reading configuration file");
             }
 
-            // Initialize the config object.
             config = new Config();
             config.secretsFile = configJson.getString("secrets-file");
             config.port = configJson.getInt("port");
-            config.validityPeriod = configJson.getLong("validity-period");
+            Object validityObj = configJson.get("validity-period");
+            if (validityObj instanceof Number) {
+                config.validityPeriod = ((Number) validityObj).longValue();
+            } else if (validityObj instanceof String) {
+                try {
+                    config.validityPeriod = Long.parseLong((String) validityObj);
+                } catch (NumberFormatException e) {
+                    System.err.println("Invalid 'validity-period' format in config. Using default: 60000 ms.");
+                    config.validityPeriod = 60000L; // Default fallback
+                }
+            }
 
-            // Load the secrets file.
+
+            saveCachedConfigPath(configFile);
             loadSecrets(config.secretsFile);
             System.out.println("Loaded configuration from: " + configFile);
         } catch (IOException e) {
@@ -98,48 +108,67 @@ public class KDCServer {
         }
     }
 
-    // Load secrets from the secrets JSON file.
-   // Load secrets from the secrets JSON file.
-private static void loadSecrets(String secretsFile) {
-    try {
-        // Read the secrets JSON file.
-        File file = new File(secretsFile);
-        if (!file.exists()) {
-            throw new FileNotFoundException("Secrets file not found: " + secretsFile);
-        }
-
-        // Parse the secrets file as a JSONObject.
-        JSONObject secretsJson = JsonIO.readObject(file);
-        if (secretsJson == null) {
-            throw new IOException("Error reading secrets file");
-        }
-
-        // Get the array of secrets.
-        JSONArray secretsArray = secretsJson.getArray("secrets");
-        if (secretsArray == null) {
-            throw new IOException("No 'secrets' array found in secrets file.");
-        }
-
-        // Iterate through the secrets array and load each secret.
-        for (int i = 0; i < secretsArray.size(); i++) {
-            JSONObject secretObj = secretsArray.getObject(i);
-            String user = secretObj.getString("user");
-            String secret = secretObj.getString("secret");
-
-            if (user == null || secret == null) {
-                System.err.println("Error: Missing 'user' or 'secret' in secrets file entry.");
-                continue;
+    private static void loadSecrets(String secretsFile) {
+        try {
+            File file = new File(secretsFile);
+            if (!file.exists()) {
+                throw new FileNotFoundException("Secrets file not found: " + secretsFile);
             }
 
-            // Store the secret in the map (username -> secret).
-            secrets.put(user, secret);
-            System.out.println("Loaded secret for user: " + user);
+            JSONObject secretsJson = JsonIO.readObject(file);
+            if (secretsJson == null) {
+                throw new IOException("Error reading secrets file");
+            }
+
+            JSONArray secretsArray = secretsJson.getArray("secrets");
+            if (secretsArray == null) {
+                throw new IOException("No 'secrets' array found in secrets file.");
+            }
+
+            for (int i = 0; i < secretsArray.size(); i++) {
+                JSONObject secretObj = secretsArray.getObject(i);
+                String user = secretObj.getString("user");
+                String secret = secretObj.getString("secret");
+
+                if (user == null || secret == null) {
+                    System.err.println("Error: Missing 'user' or 'secret' in secrets file entry.");
+                    continue;
+                }
+
+                secrets.put(user, secret);
+                System.out.println("Loaded secret for user: " + user);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
         }
-
-    } catch (IOException e) {
-        e.printStackTrace();
-        System.exit(1);
     }
-}
 
+    private static String promptForConfigFile() {
+        try (Scanner scanner = new Scanner(System.in)) {
+            System.out.print("Please enter the path to the configuration file: ");
+            return scanner.nextLine();
+        }
+    }
+
+    private static Optional<String> getCachedConfigPath() {
+        File cacheFile = new File("config.cache");
+        if (cacheFile.exists()) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(cacheFile))) {
+                return Optional.ofNullable(reader.readLine());
+            } catch (IOException e) {
+                System.err.println("Warning: Could not read config cache.");
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static void saveCachedConfigPath(String configFile) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("config.cache"))) {
+            writer.write(configFile);
+        } catch (IOException e) {
+            System.err.println("Warning: Could not save config cache.");
+        }
+    }
 }
