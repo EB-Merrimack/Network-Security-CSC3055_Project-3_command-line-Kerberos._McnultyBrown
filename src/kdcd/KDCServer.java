@@ -99,35 +99,47 @@ public class KDCServer {
     }
 
     // Load secrets from the secrets JSON file.
-    private static void loadSecrets(String secretsFile) {
-        try {
-            // Read the secrets JSON file.
-            File file = new File(secretsFile);
-            if (!file.exists()) {
-                throw new FileNotFoundException("Secrets file not found: " + secretsFile);
-            }
-
-            // Parse the secrets file as a JSONObject.
-            JSONObject secretsJson = JsonIO.readObject(file);
-            if (secretsJson == null) {
-                throw new IOException("Error reading secrets file");
-            }
-
-            // Get the array of secrets.
-            JSONArray secretsArray = secretsJson.getArray("secrets");
-            for (int i = 0; i < secretsArray.size(); i++) {
-                JSONObject secretObj = secretsArray.getObject(i);
-                String user = secretObj.getString("user");
-                String secret = secretObj.getString("secret");
-
-                // Store the secret in the map (username -> secret).
-                secrets.put(user, secret);
-                System.out.println("Loaded secret for user: " + user);
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1);
+   // Load secrets from the secrets JSON file.
+private static void loadSecrets(String secretsFile) {
+    try {
+        // Read the secrets JSON file.
+        File file = new File(secretsFile);
+        if (!file.exists()) {
+            throw new FileNotFoundException("Secrets file not found: " + secretsFile);
         }
+
+        // Parse the secrets file as a JSONObject.
+        JSONObject secretsJson = JsonIO.readObject(file);
+        if (secretsJson == null) {
+            throw new IOException("Error reading secrets file");
+        }
+
+        // Get the array of secrets.
+        JSONArray secretsArray = secretsJson.getArray("secrets");
+        if (secretsArray == null) {
+            throw new IOException("No 'secrets' array found in secrets file.");
+        }
+
+        // Iterate through the secrets array and load each secret.
+        for (int i = 0; i < secretsArray.size(); i++) {
+            JSONObject secretObj = secretsArray.getObject(i);
+            String user = secretObj.getString("user");
+            String secret = secretObj.getString("secret");
+
+            if (user == null || secret == null) {
+                System.err.println("Error: Missing 'user' or 'secret' in secrets file entry.");
+                continue;
+            }
+
+            // Store the secret in the map (username -> secret).
+            secrets.put(user, secret);
+            System.out.println("Loaded secret for user: " + user);
+        }
+
+    } catch (IOException e) {
+        e.printStackTrace();
+        System.exit(1);
     }
+}
+
 }
