@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import common.ConnectionHandler;
+
 public class EchoService {
 
     private static String configFile = null; // Config file must be explicitly set

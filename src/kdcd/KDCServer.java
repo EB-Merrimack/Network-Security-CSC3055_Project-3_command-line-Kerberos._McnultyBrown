@@ -2,49 +2,15 @@ package kdcd;
 
 import java.io.*;
 import java.net.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.security.*;
 import java.util.*;
-import javax.crypto.*;
-import javax.crypto.spec.SecretKeySpec;
-import com.google.gson.*;
 
-class Config {
-    String secretsFile;
-    int port;
-    long validityPeriod;
-}
-
-class CHAPServer {
-    private final Map<String, String> userSecrets = new HashMap<>();
-    private final SecureRandom random = new SecureRandom();
-    
-    public CHAPServer(String secretsFile) throws IOException {
-        loadSecrets(secretsFile);
-    }
-    
-    private void loadSecrets(String secretsFile) throws IOException {
-        String json = new String(Files.readAllBytes(Paths.get(secretsFile)), StandardCharsets.UTF_8);
-        Map<String, String> secrets = new Gson().fromJson(json, Map.class);
-        userSecrets.putAll(secrets);
-    }
-    
-    public String generateChallenge(String username) {
-        if (!userSecrets.containsKey(username)) {
-            return "{\"type\": \"RFC1994 Result\", \"result\": false}";
-        }
-        byte[] challengeBytes = new byte[32];
-        random.nextBytes(challengeBytes);
-        String challenge = Base64.getEncoder().encodeToString(challengeBytes);
-        return "{\"type\": \"RFC1994 Challenge\", \"challenge\": \"" + challenge + "\"}";
-    }
-}
+import common.ConnectionHandler;
+import merrimackutil.json.*;
+import merrimackutil.json.types.JSONObject;
 
 public class KDCServer {
     private static Config config;
-    
+
     public static void usageClient() {
         System.out.println("usage:");
         System.out.println("kdcd");
@@ -58,6 +24,8 @@ public class KDCServer {
 
     public static void main(String[] args) {
         if (args.length == 0) {
+            // If no arguments are passed, check for a config file and load it.
+            loadConfig();
             startServer();
         } else if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
             loadConfig(args[1]);
@@ -73,35 +41,42 @@ public class KDCServer {
     private static void startServer() {
         System.out.println("Starting KDC server on port " + config.port);
         try (ServerSocket serverSocket = new ServerSocket(config.port)) {
-            CHAPServer chapServer = new CHAPServer(config.secretsFile);
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                new Thread(() -> handleClient(clientSocket, chapServer)).start();
+                // Use the ConnectionHandler to handle the client connection.
+                new Thread(new ConnectionHandler(clientSocket)).start();
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static void handleClient(Socket socket, CHAPServer chapServer) {
-        try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            String input = in.readLine();
-            JsonObject request = JsonParser.parseString(input).getAsJsonObject();
-            String response = "{}";
-            if ("RFC1994 Initial".equals(request.get("type").getAsString())) {
-                response = chapServer.generateChallenge(request.get("id").getAsString());
-            }
-            out.println(response);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    private static void loadConfig() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Config file not provided. Please enter the path to the configuration file: ");
+        String configFile = scanner.nextLine();
+        loadConfig(configFile);
     }
 
     private static void loadConfig(String configFile) {
         try {
-            String json = new String(Files.readAllBytes(Paths.get(configFile)), StandardCharsets.UTF_8);
-            config = new Gson().fromJson(json, Config.class);
+            // Use JsonIO to read the configuration object from the file
+            File file = new File(configFile);
+            if (!file.exists()) {
+                throw new FileNotFoundException("Configuration file not found: " + configFile);
+            }
+
+            // Read the config as a JSONObject
+            JSONObject configJson = JsonIO.readObject(file);
+            if (configJson == null) {
+                throw new IOException("Error reading configuration file");
+            }
+
+            // Initialize the config object
+            config = new Config();
+            config.secretsFile = configJson.getString("secrets-file");
+            config.port = configJson.getInt("port");
+            config.validityPeriod = configJson.getLong("validity-period");
             System.out.println("Loaded configuration from: " + configFile);
         } catch (IOException e) {
             e.printStackTrace();
