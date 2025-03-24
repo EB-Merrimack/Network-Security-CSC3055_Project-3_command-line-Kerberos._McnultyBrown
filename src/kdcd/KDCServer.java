@@ -14,7 +14,7 @@ import merrimackutil.util.NonceCache;
 public class KDCServer {
     private static Config config;
     private static Map<String, String> secrets = new HashMap<>();
-    private static NonceCache nonceCache;  // NonceCache to store nonces
+    private static NonceCache nonceCache;
 
     public static void usageClient() {
         System.out.println("usage:");
@@ -28,68 +28,53 @@ public class KDCServer {
     }
 
     public static void main(String[] args) {
-        if (args.length == 0) {
-            // If no arguments are passed, check for a config file and load it.
-            loadConfig();
-            startServer();
-        } else if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
-            loadConfig(args[1]);
-            startServer();
-        } else if (args.length == 1 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            usageClient();
-        } else {
-            System.err.println("Invalid arguments provided.");
-            usageClient();
-        }
+        String configPath = "src/kdcd/kdc-config.json";
+        String secretsPath = "src/kdcd/secrets.json";
+
+        // Automatically create files if missing
+        createDefaultSecretsFileIfMissing(secretsPath);
+        createDefaultConfigFileIfMissing(configPath, secretsPath);
+
+        // Load config and start server
+        loadConfig(configPath);
+        startServer();
     }
 
     private static void startServer() {
         System.out.println("Starting KDC server on port " + config.port);
         try (ServerSocket serverSocket = new ServerSocket(config.port)) {
-            // Thread pool to handle multiple connections.
             ExecutorService executorService = Executors.newFixedThreadPool(10);
+            nonceCache = new NonceCache(16, 60); // 16-byte nonces, 60s lifespan
 
-            // Initialize the NonceCache (with size and age limit from config or defaults)
-            nonceCache = new NonceCache(16, 60); // Example: 16-byte nonces and 60 seconds validity period
-            
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                // Pass the secrets map and client socket to each handler
-                executorService.submit(new ConnectionHandler(clientSocket, nonceCache)); // Pass nonceCache to handler
+                executorService.submit(new ConnectionHandler(clientSocket, nonceCache));
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static void loadConfig() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.print("Config file not provided. Please enter the path to the configuration file: ");
-        String configFile = scanner.nextLine();
-        loadConfig(configFile);
-    }
-
     private static void loadConfig(String configFile) {
         try {
-            // Read the configuration file to get server settings.
             File file = new File(configFile);
             if (!file.exists()) {
                 throw new FileNotFoundException("Configuration file not found: " + configFile);
             }
 
-            // Parse the config as a JSONObject.
             JSONObject configJson = JsonIO.readObject(file);
             if (configJson == null) {
                 throw new IOException("Error reading configuration file");
             }
 
-            // Initialize the config object.
             config = new Config();
-            config.secretsFile = configJson.getString("secrets-file");
-            config.port = configJson.getInt("port");
+            File configFileObj = new File(configFile);
+            String configDir = configFileObj.getParent();  // "src/kdcd"
+            
+            String secretsFileName = configJson.getString("secrets-file");
+            config.secretsFile = new File(configDir, secretsFileName).getPath();            config.port = configJson.getInt("port");
             config.validityPeriod = configJson.getLong("validity-period");
 
-            // Load the secrets file.
             loadSecrets(config.secretsFile);
             System.out.println("Loaded configuration from: " + configFile);
         } catch (IOException e) {
@@ -98,48 +83,77 @@ public class KDCServer {
         }
     }
 
-    // Load secrets from the secrets JSON file.
-   // Load secrets from the secrets JSON file.
-private static void loadSecrets(String secretsFile) {
-    try {
-        // Read the secrets JSON file.
-        File file = new File(secretsFile);
-        if (!file.exists()) {
-            throw new FileNotFoundException("Secrets file not found: " + secretsFile);
-        }
-
-        // Parse the secrets file as a JSONObject.
-        JSONObject secretsJson = JsonIO.readObject(file);
-        if (secretsJson == null) {
-            throw new IOException("Error reading secrets file");
-        }
-
-        // Get the array of secrets.
-        JSONArray secretsArray = secretsJson.getArray("secrets");
-        if (secretsArray == null) {
-            throw new IOException("No 'secrets' array found in secrets file.");
-        }
-
-        // Iterate through the secrets array and load each secret.
-        for (int i = 0; i < secretsArray.size(); i++) {
-            JSONObject secretObj = secretsArray.getObject(i);
-            String user = secretObj.getString("user");
-            String secret = secretObj.getString("secret");
-
-            if (user == null || secret == null) {
-                System.err.println("Error: Missing 'user' or 'secret' in secrets file entry.");
-                continue;
+    private static void loadSecrets(String secretsFile) {
+        try {
+            File file = new File(secretsFile);
+            if (!file.exists()) {
+                throw new FileNotFoundException("Secrets file not found: " + secretsFile);
             }
 
-            // Store the secret in the map (username -> secret).
-            secrets.put(user, secret);
-            System.out.println("Loaded secret for user: " + user);
+            JSONObject secretsJson = JsonIO.readObject(file);
+            if (secretsJson == null) {
+                throw new IOException("Error reading secrets file");
+            }
+
+            JSONArray secretsArray = secretsJson.getArray("secrets");
+            if (secretsArray == null) {
+                throw new IOException("No 'secrets' array found in secrets file.");
+            }
+
+            for (int i = 0; i < secretsArray.size(); i++) {
+                JSONObject secretObj = secretsArray.getObject(i);
+                String user = secretObj.getString("user");
+                String secret = secretObj.getString("secret");
+
+                if (user == null || secret == null) {
+                    System.err.println("Warning: Missing 'user' or 'secret' in entry " + i);
+                    continue;
+                }
+
+                secrets.put(user, secret);
+                System.out.println("Loaded secret for user: " + user);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
         }
-
-    } catch (IOException e) {
-        e.printStackTrace();
-        System.exit(1);
     }
-}
 
+    private static void createDefaultSecretsFileIfMissing(String path) {
+        File file = new File(path);
+        if (!file.exists()) {
+            System.out.println("Creating default secrets file: " + path);
+            JSONObject root = new JSONObject();
+            root.put("secrets", new JSONArray());
+
+            try (PrintWriter writer = new PrintWriter(file)) {
+                writer.println(root.getFormattedJSON());
+                System.out.println("✅ Empty secrets file created.");
+            } catch (IOException e) {
+                System.err.println("❌ Failed to create secrets file: " + e.getMessage());
+                System.exit(1);
+            }
+        }
+    }
+
+    private static void createDefaultConfigFileIfMissing(String configPath, String secretsPath) {
+        File file = new File(configPath);
+        if (!file.exists()) {
+            System.out.println("Creating default KDC config: " + configPath);
+
+            JSONObject root = new JSONObject();
+            root.put("secrets-file", "secrets.json");
+            root.put("port", 5000);
+            root.put("validity-period", 60000); // 60 seconds
+
+            try (PrintWriter writer = new PrintWriter(file)) {
+                writer.println(root.getFormattedJSON());
+                System.out.println("✅ Default config file created.");
+            } catch (IOException e) {
+                System.err.println("❌ Failed to create config file: " + e.getMessage());
+                System.exit(1);
+            }
+        }
+    }
 }
