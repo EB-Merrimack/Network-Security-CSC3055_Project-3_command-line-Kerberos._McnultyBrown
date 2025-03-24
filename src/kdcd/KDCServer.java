@@ -16,8 +16,7 @@ public class KDCServer {
     private static Map<String, String> secrets = new HashMap<>();
     private static NonceCache nonceCache;  
     private static final String DEFAULT_CONFIG_FILE = "src/kdcd/config.json";
-    
-    public static void usageClient() {
+       public static void usageClient() {
         System.out.println("usage:");
         System.out.println("kdcd");
         System.out.println("kdcd --config <configfile>");
@@ -75,7 +74,7 @@ public class KDCServer {
             File file = new File(configFile);
             if (!file.exists()) {
                 System.err.println("Config file not found: " + configFile);
-                configFile = promptForConfigFile();
+                configFile = Config.createDefaultConfig(configFile);
             }
 
             JSONObject configJson = JsonIO.readObject(new File(configFile));
@@ -108,52 +107,54 @@ public class KDCServer {
         }
     }
 
-    private static void loadSecrets(String secretsFile) {
-        try {
-            File file = new File(secretsFile);
-            if (!file.exists()) {
-                throw new FileNotFoundException("Secrets file not found: " + secretsFile);
-            }
-
-            JSONObject secretsJson = JsonIO.readObject(file);
-            if (secretsJson == null) {
-                throw new IOException("Error reading secrets file");
-            }
-
-            JSONArray secretsArray = secretsJson.getArray("secrets");
-            if (secretsArray == null) {
-                throw new IOException("No 'secrets' array found in secrets file.");
-            }
-
-            for (int i = 0; i < secretsArray.size(); i++) {
-                JSONObject secretObj = secretsArray.getObject(i);
-                String user = secretObj.getString("user");
-                String secret = secretObj.getString("secret");
-
-                if (user == null || secret == null) {
-                    System.err.println("Error: Missing 'user' or 'secret' in secrets file entry.");
-                    continue;
-                }
-
-                secrets.put(user, secret);
-                System.out.println("Loaded secret for user: " + user);
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            System.exit(1);
+private static void loadSecrets(String secretsFile) {
+    try {
+        // Ensure secrets file is inside kdcd directory
+        File file = new File(secretsFile);
+        if (!file.isAbsolute()) {
+            file = new File("src/kdcd", secretsFile);
         }
-    }
 
-    private static String promptForConfigFile() {
-        try (Scanner scanner = new Scanner(System.in)) {
-            System.out.print("Please enter the path to the configuration file: ");
-            return scanner.nextLine();
+        if (!file.exists()) {
+            System.out.println("Secrets file not found, creating new secret store file");
+            Secret.createDefaultSecretsFile(file);
+
         }
+
+        JSONObject secretsJson = JsonIO.readObject(file);
+        if (secretsJson == null) {
+            throw new IOException("Error reading secrets file");
+        }
+
+        JSONArray secretsArray = secretsJson.getArray("secrets");
+        if (secretsArray == null) {
+            throw new IOException("No 'secrets' array found in secrets file.");
+        }
+
+        for (int i = 0; i < secretsArray.size(); i++) {
+            JSONObject secretObj = secretsArray.getObject(i);
+            String user = secretObj.getString("user");
+            String secret = secretObj.getString("secret");
+
+            if (user == null || secret == null) {
+                System.err.println("Error: Missing 'user' or 'secret' in secrets file entry.");
+                continue;
+            }
+
+            secrets.put(user, secret);
+            System.out.println("Loaded secret for user: " + user);
+        }
+
+    } catch (IOException e) {
+        e.printStackTrace();
+        System.exit(1);
     }
+}
+
+   
 
     private static Optional<String> getCachedConfigPath() {
-        File cacheFile = new File("config.cache");
+        File cacheFile = new File("kdcd/config.cache");
         if (cacheFile.exists()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(cacheFile))) {
                 return Optional.ofNullable(reader.readLine());
