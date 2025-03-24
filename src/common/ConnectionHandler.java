@@ -1,40 +1,29 @@
 package common;
-/*
- *   Copyright (C) 2022 -- 2023  Zachary A. Kissel
- *
- *   This program is free software: you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation, either version 3 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License
- *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
+
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Scanner;
 import java.io.IOException;
+import merrimackutil.util.NonceCache;
 
 /**
- * Handles a single connection.
+ * Handles a single connection, including nonce management.
  * @author Zach Kissel
  */
 public class ConnectionHandler implements Runnable
 {
     private Socket sock;
+    private NonceCache nonceCache;  // NonceCache to check for replay attacks
 
     /**
-     * Creates a new conneciton handler 
+     * Creates a new connection handler with nonce cache.
      * @param sock the socket associated with the connection.
+     * @param nonceCache the nonce cache to check for replay attacks.
      */
-    public ConnectionHandler(Socket sock)
+    public ConnectionHandler(Socket sock, NonceCache nonceCache)
     {
         this.sock = sock;
+        this.nonceCache = nonceCache;  // Initialize with the nonce cache
     }
 
     /**
@@ -48,18 +37,45 @@ public class ConnectionHandler implements Runnable
             Scanner recv = new Scanner(sock.getInputStream());
             PrintWriter send = new PrintWriter(sock.getOutputStream(), true);
 
-            // Get the line from the client.
+            // Receive the nonce from the client (as a byte array)
+            byte[] receivedNonce = receiveNonceFromClient(recv);
+
+            // Check if the nonce has been used before
+            if (nonceCache.containsNonce(receivedNonce)) {
+                send.println("Nonce replay detected! Request rejected.");
+                sock.close();
+                return;  // Reject the connection if the nonce is a replay
+            }
+
+            // Process the received message (convert to uppercase for echoing)
             String line = recv.nextLine();
+            send.println(line.toUpperCase());  // Send the response back
 
-            // Echo the line back.
-            send.println(line.toUpperCase());
+            // Add the nonce to the cache to prevent replay attacks
+            nonceCache.addNonce(receivedNonce);
 
-            // Close the connection.
+            // Close the connection
             sock.close();
         }
         catch (IOException ex)
         {
             ex.printStackTrace();
         }    
+    }
+
+    /**
+     * Simulates receiving a nonce from the client.
+     * (In practice, this would be part of the message or handshake)
+     * @param recv the scanner to receive data.
+     * @return the received nonce as a byte array.
+     */
+    private byte[] receiveNonceFromClient(Scanner recv)
+    {
+        // Example: Receive the nonce as a byte array (you can change the logic here)
+        byte[] nonce = new byte[16];  // For example, 16-byte nonce
+        recv.nextLine();  // Simulating nonce reception as part of the communication (this can be adjusted)
+
+        // In a real case, you would decode the nonce properly from the client message.
+        return nonce;  // Return the received nonce
     }
 }

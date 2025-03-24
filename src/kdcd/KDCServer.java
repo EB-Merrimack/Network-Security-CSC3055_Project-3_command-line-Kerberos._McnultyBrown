@@ -3,13 +3,18 @@ package kdcd;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 import common.ConnectionHandler;
 import merrimackutil.json.*;
+import merrimackutil.json.types.JSONArray;
 import merrimackutil.json.types.JSONObject;
+import merrimackutil.util.NonceCache;
 
 public class KDCServer {
     private static Config config;
+    private static Map<String, String> secrets = new HashMap<>();
+    private static NonceCache nonceCache;  // NonceCache to store nonces
 
     public static void usageClient() {
         System.out.println("usage:");
@@ -41,10 +46,16 @@ public class KDCServer {
     private static void startServer() {
         System.out.println("Starting KDC server on port " + config.port);
         try (ServerSocket serverSocket = new ServerSocket(config.port)) {
+            // Thread pool to handle multiple connections.
+            ExecutorService executorService = Executors.newFixedThreadPool(10);
+
+            // Initialize the NonceCache (with size and age limit from config or defaults)
+            nonceCache = new NonceCache(16, 60); // Example: 16-byte nonces and 60 seconds validity period
+            
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                // Use the ConnectionHandler to handle the client connection.
-                new Thread(new ConnectionHandler(clientSocket)).start();
+                // Pass the secrets map and client socket to each handler
+                executorService.submit(new ConnectionHandler(clientSocket, nonceCache)); // Pass nonceCache to handler
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -60,24 +71,60 @@ public class KDCServer {
 
     private static void loadConfig(String configFile) {
         try {
-            // Use JsonIO to read the configuration object from the file
+            // Read the configuration file to get server settings.
             File file = new File(configFile);
             if (!file.exists()) {
                 throw new FileNotFoundException("Configuration file not found: " + configFile);
             }
 
-            // Read the config as a JSONObject
+            // Parse the config as a JSONObject.
             JSONObject configJson = JsonIO.readObject(file);
             if (configJson == null) {
                 throw new IOException("Error reading configuration file");
             }
 
-            // Initialize the config object
+            // Initialize the config object.
             config = new Config();
             config.secretsFile = configJson.getString("secrets-file");
             config.port = configJson.getInt("port");
             config.validityPeriod = configJson.getLong("validity-period");
+
+            // Load the secrets file.
+            loadSecrets(config.secretsFile);
             System.out.println("Loaded configuration from: " + configFile);
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
+    // Load secrets from the secrets JSON file.
+    private static void loadSecrets(String secretsFile) {
+        try {
+            // Read the secrets JSON file.
+            File file = new File(secretsFile);
+            if (!file.exists()) {
+                throw new FileNotFoundException("Secrets file not found: " + secretsFile);
+            }
+
+            // Parse the secrets file as a JSONObject.
+            JSONObject secretsJson = JsonIO.readObject(file);
+            if (secretsJson == null) {
+                throw new IOException("Error reading secrets file");
+            }
+
+            // Get the array of secrets.
+            JSONArray secretsArray = secretsJson.getArray("secrets");
+            for (int i = 0; i < secretsArray.size(); i++) {
+                JSONObject secretObj = secretsArray.getObject(i);
+                String user = secretObj.getString("user");
+                String secret = secretObj.getString("secret");
+
+                // Store the secret in the map (username -> secret).
+                secrets.put(user, secret);
+                System.out.println("Loaded secret for user: " + user);
+            }
+
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);
