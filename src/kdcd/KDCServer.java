@@ -136,20 +136,20 @@ private static void loadSecrets(String secretsFile) {
             String user = secretObj.getString("user");
             String secret = secretObj.getString("secret");
 
-            if (user == null || secret == null) {
-                System.err.println("Error: Missing 'user' or 'secret' in secrets file entry.");
-                continue;
-            }
+                if (user == null || secret == null) {
+                    System.err.println("Warning: Missing 'user' or 'secret' in entry " + i);
+                    continue;
+                }
 
             secrets.put(user, secret);
             System.out.println("Loaded secret for user: " + user);
         }
 
-    } catch (IOException e) {
-        e.printStackTrace();
-        System.exit(1);
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
     }
-}
 
    
 
