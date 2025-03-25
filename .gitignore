@@ -30,3 +30,9 @@ replay_pid*
 
 
 /dist
+src/kdcd/config.json
+src/kdcd/secrets.json
+src/kdcd/kdc-config.json
+src/kdcd/secrets.json
+src/kdcd/secrets.json
+src/kdcd/config.cache
