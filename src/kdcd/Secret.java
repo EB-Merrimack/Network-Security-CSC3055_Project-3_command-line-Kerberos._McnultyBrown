@@ -10,24 +10,28 @@ import merrimackutil.json.types.JSONObject;
 public class Secret {
     public String user;
     public String secret;
+
+    // Static method to create a default empty secrets file if it doesn't exist
     public static void createDefaultSecretsFile(File file) {
-       JSONObject secrets = new JSONObject();
+        // Create the root JSON object and the "secrets" array
+        JSONObject root = new JSONObject();
+        JSONArray secArray = new JSONArray(); // Empty array
 
-                JSONArray secArray = new JSONArray();
-                secArray.add(secrets);
+        // Add the empty "secrets" array to the root object
+        root.put("secrets", secArray);
 
-                JSONObject root = new JSONObject();
-                root.put("secrets", secArray);
+        // Write the JSON to the file
+        try (PrintWriter writer = new PrintWriter(file)) {
+            writer.println(root.getFormattedJSON());
+            System.out.println("✅ secrets.json created successfully.");
+        } catch (IOException e) {
+            System.err.println("❌ Failed to create secrets.json: " + e.getMessage());
+            System.exit(1);
+        }
+    }
 
-                try (PrintWriter writer = new PrintWriter(file)) {
-                    writer.println(root.getFormattedJSON());
-                    System.out.println("✅ secrets.json created manually before loading.");
-                }
-
-            catch (IOException e) {
-                System.err.println("❌ Failed to create hosts.json: " + e.getMessage());
-                System.exit(1);
-            }
-        throw new UnsupportedOperationException("Unimplemented method 'createDefaultSecretsFile'");
+    public static void main(String[] args) {
+        // Example usage: Create a default secrets file
+        createDefaultSecretsFile(new File("secrets.json"));
     }
 }
