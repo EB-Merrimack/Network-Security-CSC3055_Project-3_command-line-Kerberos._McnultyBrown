@@ -154,7 +154,7 @@ private static void loadSecrets(String secretsFile) {
    
 
     private static Optional<String> getCachedConfigPath() {
-        File cacheFile = new File("kdcd/config.cache");
+        File cacheFile = new File("src/kdcd/config.cache");
         if (cacheFile.exists()) {
             try (BufferedReader reader = new BufferedReader(new FileReader(cacheFile))) {
                 return Optional.ofNullable(reader.readLine());
@@ -166,7 +166,7 @@ private static void loadSecrets(String secretsFile) {
     }
 
     private static void saveCachedConfigPath(String configFile) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter("config.cache"))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter("src/kdcd/config.cache"))) {
             writer.write(configFile);
         } catch (IOException e) {
             System.err.println("Warning: Could not save config cache.");
