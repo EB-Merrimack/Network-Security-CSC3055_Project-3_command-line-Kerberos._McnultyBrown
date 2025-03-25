@@ -2,7 +2,12 @@ package common;
 
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.security.MessageDigest;
 import java.util.Scanner;
+import java.util.UUID;
+
+import kdcd.KDCServer;
+
 import java.io.IOException;
 import merrimackutil.util.NonceCache;
 
@@ -29,39 +34,70 @@ public class ConnectionHandler implements Runnable
     /**
      * How to handle the connection
      */
-    public void run() 
-    {
-        try
-        {
-            // Setup the streams for use.
-            Scanner recv = new Scanner(sock.getInputStream());
-            PrintWriter send = new PrintWriter(sock.getOutputStream(), true);
+    public void run() {
+    try {
+        Scanner recv = new Scanner(sock.getInputStream());
+        PrintWriter send = new PrintWriter(sock.getOutputStream(), true);
 
-            // Receive the nonce from the client (as a byte array)
-            byte[] receivedNonce = receiveNonceFromClient(recv);
+        // Message 1: Receive claim
+        String rawClaim = recv.nextLine();
+        System.out.println("📨 Received CHAP claim: " + rawClaim);
 
-            // Check if the nonce has been used before
-            if (nonceCache.containsNonce(receivedNonce)) {
-                send.println("Nonce replay detected! Request rejected.");
-                sock.close();
-                return;  // Reject the connection if the nonce is a replay
-            }
-
-            // Process the received message (convert to uppercase for echoing)
-            String line = recv.nextLine();
-            send.println(line.toUpperCase());  // Send the response back
-
-            // Add the nonce to the cache to prevent replay attacks
-            nonceCache.addNonce(receivedNonce);
-
-            // Close the connection
+        if (!rawClaim.contains("username")) {
+            send.println("{\"type\": \"status\", \"status\": \"failure\"}");
             sock.close();
+            return;
         }
-        catch (IOException ex)
-        {
-            ex.printStackTrace();
-        }    
+
+        String username = rawClaim.split(":")[1].replace("\"", "").replace("}", "").trim();
+
+        // Lookup secret from secrets map
+        String secret = KDCServer.secrets.get(username);
+        if (secret == null) {
+            System.out.println("❌ Unknown user: " + username);
+            send.println("{\"type\": \"status\", \"status\": \"failure\"}");
+            sock.close();
+            return;
+        }
+
+        // Message 2: Generate and send challenge (nonce)
+        String challenge = UUID.randomUUID().toString(); // simple random nonce
+        send.println("{\"type\": \"challenge\", \"nonce\": \"" + challenge + "\"}");
+        System.out.println("🧩 Sent challenge: " + challenge);
+
+        // Message 3: Receive hash from client
+        String response = recv.nextLine();
+        String receivedHash = response.split(":")[1].replace("\"", "").replace("}", "").trim();
+
+        // Recompute hash on server side
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        String concat = secret + challenge;
+        byte[] serverHash = digest.digest(concat.getBytes());
+
+        String expectedHash = bytesToHex(serverHash);
+
+        // Message 4: Compare hashes and send result
+        if (receivedHash.equals(expectedHash)) {
+            System.out.println("✅ CHAP authentication successful for: " + username);
+            send.println("{\"type\": \"status\", \"status\": \"success\"}");
+        } else {
+            System.out.println("❌ Invalid CHAP hash for: " + username);
+            send.println("{\"type\": \"status\", \"status\": \"failure\"}");
+        }
+
+        sock.close();
+    } catch (Exception e) {
+        e.printStackTrace();
     }
+}
+
+private static String bytesToHex(byte[] bytes) {
+    StringBuilder sb = new StringBuilder();
+    for (byte b : bytes) {
+        sb.append(String.format("%02x", b));
+    }
+    return sb.toString();
+}
 
     /**
      * Simulates receiving a nonce from the client.

@@ -1,5 +1,23 @@
 package kdcd;
 
+public class Config {
+    public String secretsFile;
+    public int port;
+    public long validityPeriod;
+}
+
+
+
+
+
+
+
+
+
+
+
+/*package kdcd;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 
@@ -35,4 +53,4 @@ public class Config {
         // Example usage: Create the default config file at a given path
         createDefaultConfig("config.json");
     }
-}
+}*/
