@@ -68,7 +68,7 @@ public class KDCClient {
         OptionParser parser;
 
         LongOption[] opts = new LongOption[3];
-        opts[0] = new LongOption("hosts", false, 'h');
+        opts[0] = new LongOption("hosts", true, 'h');
         opts[1] = new LongOption("user", true, 'u');
         opts[2] = new LongOption("service", true, 's');
 
@@ -76,7 +76,7 @@ public class KDCClient {
 
         parser = new OptionParser(args);
         parser.setLongOpts(opts);
-        parser.setOptString("hu:s");
+        parser.setOptString("h:u:s:");
 
         while (parser.getOptIdx() != args.length) {
             currOpt = parser.getLongOpt(false);
@@ -234,22 +234,25 @@ public class KDCClient {
     
     public static void main(String[] args) {
         processArgs(args);
-
-        if (user == null) {
-            user = promptForUsername("Enter username");
+    
+        // ✅ If required args are missing, show usage and exit
+        if (user == null || service == null) {
+            usageClient();
         }
-
+    
+        // ✅ Prompt for password
         String password = promptForPassword("Enter password");
-
-        // 🔐 Load KDC host info (forces hosts.json to be created if needed)
-        Tuple<String, Integer> kdcHostInfo = getHostInfo("kdcd");
+    
+        // ✅ Get host info
+        Tuple<String, Integer> kdcHostInfo = getHostInfo("kdcd"); // 'kdcd' looked up from hosts file
         KDC_HOST = kdcHostInfo.getFirst();
         KDC_PORT = kdcHostInfo.getSecond();
-
+    
+        // ✅ Start CHAP protocol
         if (authenticateWithKDC(user, password, KDC_HOST, KDC_PORT)) {
             System.out.println("✅ Proceeding to session key request...");
     
-            // 🔑 Request session key + ticket
+            // ✅ Request session key + ticket
             Tuple<String, Ticket> result = requestSessionKey(user, service, password);
             if (result != null) {
                 String sessionKey = result.getFirst();
@@ -258,7 +261,7 @@ public class KDCClient {
                 System.out.println("🔓 Session Key: " + sessionKey);
                 System.out.println("🎫 Ticket for service: " + ticket.getService());
     
-                // TODO: Proceed to service handshake and echo communication
+                // ✅ Ready to move to the next phase (handshake)
             } else {
                 System.out.println("❌ Failed to retrieve session key or ticket.");
             }
