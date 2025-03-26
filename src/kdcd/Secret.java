@@ -17,6 +17,21 @@ public class Secret implements JSONSerializable {
     public String user;
     public String secret;
 
+    /**
+     * Deserialize a Secret from a JSONType.
+     * 
+     * This method expects the JSONType to be a JSONObject with the following
+     * fields:
+     * 
+     * <ul>
+     * <li>user: A string representing the user associated with the secret.
+     * <li>secret: A string representing the secret itself.
+     * </ul>
+     * 
+     * @param json The JSONType containing the serialized Secret.
+     * @throws InvalidObjectException If the JSONType is not a JSONObject, or
+     *             if the JSONObject does not contain the expected fields.
+     */
     @Override
     public void deserialize(JSONType json) throws InvalidObjectException {
         if (!(json instanceof JSONObject)) {
@@ -27,6 +42,16 @@ public class Secret implements JSONSerializable {
         this.secret = jsonObject.getString("secret");
     }
 
+    /**
+     * Serialize this Secret to a JSONType.
+     * 
+     * The serialized JSONType is a JSONObject with the following fields:
+     * 
+     * <ul>
+     * <li>user: A string representing the user associated with the secret.
+     * <li>secret: A string representing the secret itself.
+     * </ul>
+     */
     @Override
     public JSONType toJSONType() {
         JSONObject jsonObject = new JSONObject();
@@ -35,23 +60,4 @@ public class Secret implements JSONSerializable {
         return jsonObject;
     }
 
-    public static void createDefaultSecretsFile(File file) throws IOException {
-        List<Secret> defaultSecrets = new ArrayList<>();
-        Secret defaultSecret = new Secret();
-        defaultSecret.user = "default_user";
-        defaultSecret.secret = "default_secret";
-        defaultSecrets.add(defaultSecret);
-
-        JSONArray secretsArray = new JSONArray();
-        for (Secret secret : defaultSecrets) {
-            secretsArray.add(secret.toJSONType());
-        }
-
-        JSONObject secretsJson = new JSONObject();
-        secretsJson.put("secrets", secretsArray);
-        
-        try (PrintWriter writer = new PrintWriter(file)) {
-            writer.write(secretsJson.toString());
-        }
-    }
 }

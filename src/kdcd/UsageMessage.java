@@ -21,6 +21,17 @@ public class UsageMessage implements JSONSerializable {
             "  -h, --help                  Display the help.\n");
     }
 
+/**
+ * Deserializes a JSONType into the UsageMessage object.
+ *
+ * This method expects the JSONType to be a JSONObject containing a 
+ * "usage" field. The value of this field is extracted and stored 
+ * in the internal JSONObject of this object.
+ *
+ * @param arg0 The JSONType to be deserialized, expected to be a JSONObject.
+ * @throws InvalidObjectException If the input JSONType is not a JSONObject.
+ */
+
     @Override
     public void deserialize(JSONType arg0) throws InvalidObjectException {
         if (arg0 instanceof JSONObject) {
@@ -32,6 +43,15 @@ public class UsageMessage implements JSONSerializable {
             throw new InvalidObjectException("Expected a JSONObject for deserialization");
         }
     }
+
+/**
+ * Converts the UsageMessage object to a JSONType.
+ *
+ * This method provides a JSON representation of the UsageMessage
+ * by returning the internal JSONObject that stores the usage message.
+ *
+ * @return A JSONType representing the UsageMessage.
+ */
 
     @Override
     public JSONType toJSONType() {
