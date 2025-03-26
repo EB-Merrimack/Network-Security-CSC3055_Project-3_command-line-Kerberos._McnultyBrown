@@ -1,4 +1,4 @@
-package kdcd;
+/*package kdcd;
 
 import java.io.File;
 import java.io.IOException;
@@ -34,4 +34,4 @@ public class Secret {
         // Example usage: Create a default secrets file
         createDefaultSecretsFile(new File("secrets.json"));
     }
-}
+}*/

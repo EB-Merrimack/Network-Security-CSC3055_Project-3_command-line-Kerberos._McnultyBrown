@@ -130,12 +130,28 @@ public class KDCServer {
         File file = new File(path);
         if (!file.exists()) {
             System.out.println("Creating default secrets file: " + path);
+    
+            JSONArray secretsArray = new JSONArray();
+    
+            // Add alice
+            JSONObject alice = new JSONObject();
+            alice.put("user", "alice");
+            alice.put("secret", "password");
+    
+            // Add echoservice
+            JSONObject echo = new JSONObject();
+            echo.put("user", "echoservice");
+            echo.put("secret", "servicepass");
+    
+            secretsArray.add(alice);
+            secretsArray.add(echo);
+    
             JSONObject root = new JSONObject();
-            root.put("secrets", new JSONArray());
-
+            root.put("secrets", secretsArray);
+    
             try (PrintWriter writer = new PrintWriter(file)) {
                 writer.println(root.getFormattedJSON());
-                System.out.println("✅ Empty secrets file created.");
+                System.out.println("✅ Default secrets file with preloaded users created.");
             } catch (IOException e) {
                 System.err.println("❌ Failed to create secrets file: " + e.getMessage());
                 System.exit(1);

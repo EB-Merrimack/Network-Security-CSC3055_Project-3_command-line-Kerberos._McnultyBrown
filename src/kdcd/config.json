@@ -1,6 +1,0 @@
-{
-   "port" : 5000,
-   "validity-period" : 60000,
-   "secrets-file" : "secrets.json"
-}
-
