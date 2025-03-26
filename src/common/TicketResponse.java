@@ -1,7 +1,6 @@
 package common;
 
 import java.io.InvalidObjectException;
-import java.util.Base64;
 
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;

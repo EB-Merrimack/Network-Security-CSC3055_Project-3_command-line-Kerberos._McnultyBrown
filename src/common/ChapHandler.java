@@ -1,8 +1,5 @@
 package common;
 
-import common.Channel;
-import common.CryptoUtils;
-import common.Ticket;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.util.NonceCache;
 import protocol.RFC1994Challenge;
