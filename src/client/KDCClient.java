@@ -114,8 +114,14 @@ public class KDCClient {
                 kdcObj.put("address", "127.0.0.1");
                 kdcObj.put("port", 5000);
 
+                JSONObject echoObj = new JSONObject();
+                echoObj.put("host-name", "echoservice");
+                echoObj.put("address", "127.0.0.1");
+                echoObj.put("port", 5001); // 👈 Match what your EchoService is actually using
+
                 JSONArray hostArray = new JSONArray();
                 hostArray.add(kdcObj);
+                hostArray.add(echoObj);
 
                 JSONObject root = new JSONObject();
                 root.put("hosts", hostArray);

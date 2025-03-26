@@ -5,6 +5,7 @@ import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.util.NonceCache;
 import common.service.ClientHello;
+import common.service.ClientResponse;
 import common.service.HandshakeResponse;
 
 import javax.crypto.Cipher;
@@ -72,8 +73,29 @@ public class EchoServiceHandler implements Runnable {
             HandshakeResponse response = new HandshakeResponse(base64Ns, ticket.getService(), ivOut, encNc);
             channel.sendMessage(response);
 
-            // ✅ Next step would be waiting for ClientResponse
-            // ... (we’ll implement that next)
+            // 🧾 Step 3: Receive ClientResponse
+            System.out.println("📥 Waiting for ClientResponse...");
+            JSONObject clientRespJson = channel.receiveMessage();
+            ClientResponse clientResp = new ClientResponse("", "", "", "");
+            clientResp.deserialize(clientRespJson);
+
+            // 🔓 Decrypt enc(Ns)
+            System.out.println("🔐 Decrypting client's proof (enc(Ns))...");
+            byte[] ivBytesResp = Base64.getDecoder().decode(clientResp.getIv());
+            byte[] encNs = Base64.getDecoder().decode(clientResp.getEncryptedNonce());
+
+            Cipher decryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+            decryptCipher.init(Cipher.DECRYPT_MODE, ks, new GCMParameterSpec(128, ivBytesResp));
+            byte[] decryptedNs = decryptCipher.doFinal(encNs);
+            String base64DecryptedNs = Base64.getEncoder().encodeToString(decryptedNs);
+
+            // ✅ Verify it matches original Ns
+            if (!base64DecryptedNs.equals(base64Ns)) {
+                throw new SecurityException("❌ Client failed to prove knowledge of session key.");
+            }
+
+            System.out.println("✅ Client handshake verified!");
+            System.out.println("🤝 Session established with user: " + clientResp.getClientId());
 
         } catch (Exception e) {
             System.err.println("❌ Error in EchoServiceHandler: " + e.getMessage());
