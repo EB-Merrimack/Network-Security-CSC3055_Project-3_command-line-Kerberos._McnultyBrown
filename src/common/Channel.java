@@ -6,6 +6,7 @@ import merrimackutil.json.JsonIO;
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.json.types.JSONType;
+import java.io.InvalidObjectException;
 
 public class Channel implements JSONSerializable {
     private final Socket socket;
@@ -16,6 +17,11 @@ public class Channel implements JSONSerializable {
         this.socket = socket;
         this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
+    }
+
+    // Getter for PrintWriter (to send data through the channel)
+    public PrintWriter getWriter() {
+        return this.writer;
     }
 
     public void sendMessage(JSONObject message) {
@@ -44,13 +50,18 @@ public class Channel implements JSONSerializable {
 
     @Override
     public void deserialize(JSONType json) throws InvalidObjectException {
+        // In case you need to handle JSON deserialization for the Channel
         if (!(json instanceof JSONObject)) {
             throw new InvalidObjectException("Invalid JSON format for Channel");
         }
+        // For example, you might populate the Channel object from the JSON
     }
 
     @Override
     public JSONType toJSONType() {
-        return new JSONObject();
+        // Convert Channel's relevant data to JSON if needed
+        JSONObject json = new JSONObject();
+        json.put("socket", socket.toString());
+        return json;
     }
 }

@@ -17,17 +17,16 @@ public class KDCServer {
     private static Map<String, String> secrets = new HashMap<>();
     private static NonceCache nonceCache;
     private static final String DEFAULT_CONFIG_FILE = "src/kdcd/config.json";
+    private static Channel channel;
 
     public static void usageClient(Channel channel) {
-        String usageMessage = "usage:\n" +
-            "kdcd\n" +
-            "kdcd --config <configfile>\n" +
-            "kdcd --help\n" +
-            "options:\n" +
-            "  -c, --config Set the config file.\n" +
-            "  -h, --help Display the help.\n";
-        
-        sendMessageToChannel(channel, usageMessage);
+        // Create an instance of the UsageMessage class
+        UsageMessage usageMessage = new UsageMessage();
+    
+        // Send the serialized JSON object over the channel using JsonIO.writeSerializedObject
+        JsonIO.writeSerializedObject(usageMessage, channel.getWriter());  // Ensure you're passing PrintWriter
+    
+        // Exit the program
         System.exit(1);
     }
 
@@ -37,10 +36,10 @@ public class KDCServer {
         if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
             configFile = args[1];
         } else if (args.length == 1 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            usageClient(null); // Null passed since no active channel in `main` method context
+            usageClient(channel); // Null passed since no active channel in `main` method context
         } else if (args.length > 0) {
             System.err.println("Invalid arguments provided.");
-            usageClient(null);
+            usageClient(channel);
         }
 
         loadConfig(configFile);
@@ -79,13 +78,13 @@ public class KDCServer {
         try {
             File file = new File(configFile);
             if (!file.exists()) {
-                sendMessageToChannel(null, "Config file not found and must be created: " + configFile); // No channel, sent to console
+                sendMessageToChannel(channel, "Config file not found and must be created: " + configFile); // No channel, sent to console
                 System.exit(1);
             }
 
             JSONObject configJson = JsonIO.readObject(new File(configFile));
             if (configJson == null) {
-                sendMessageToChannel(null, "Error reading configuration file");
+                sendMessageToChannel(channel, "Error reading configuration file");
                 System.exit(1);
             }
 
@@ -99,13 +98,13 @@ public class KDCServer {
                 try {
                     config.validityPeriod = Long.parseLong((String) validityObj);
                 } catch (NumberFormatException e) {
-                    sendMessageToChannel(null, "Invalid 'validity-period' format in config. Using default: 60000 ms.");
+                    sendMessageToChannel(channel, "Invalid 'validity-period' format in config. Using default: 60000 ms.");
                     config.validityPeriod = 60000L; // Default fallback
                 }
             }
 
             loadSecrets(config.secretsFile);
-            sendMessageToChannel(null, "Loaded configuration from: " + configFile);
+            sendMessageToChannel(channel, "Loaded configuration from: " + configFile);
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);
@@ -120,7 +119,7 @@ public class KDCServer {
             }
 
             if (!file.exists()) {
-                sendMessageToChannel(null, "Secrets file not found, this must be created");
+                sendMessageToChannel(channel, "Secrets file not found, this must be created");
                 System.exit(1);
             }
 
@@ -140,12 +139,12 @@ public class KDCServer {
                 String secret = secretObj.getString("secret");
 
                 if (user == null || secret == null) {
-                    sendMessageToChannel(null, "Warning: Missing 'user' or 'secret' in entry " + i);
+                    sendMessageToChannel(channel, "Warning: Missing 'user' or 'secret' in entry " + i);
                     continue;
                 }
 
                 secrets.put(user, secret);
-                sendMessageToChannel(null, "Loaded secret for user: " + user);
+                sendMessageToChannel(channel, "Loaded secret for user: " + user);
             }
 
         } catch (IOException e) {
