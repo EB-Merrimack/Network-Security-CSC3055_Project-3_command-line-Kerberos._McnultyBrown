@@ -5,6 +5,7 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
 
+import common.Channel;
 import common.ConnectionHandler;
 import merrimackutil.json.*;
 import merrimackutil.json.types.JSONArray;
@@ -17,14 +18,16 @@ public class KDCServer {
     private static NonceCache nonceCache;
     private static final String DEFAULT_CONFIG_FILE = "src/kdcd/config.json";
 
-    public static void usageClient() {
-        System.out.println("usage:");
-        System.out.println("kdcd");
-        System.out.println("kdcd --config <configfile>");
-        System.out.println("kdcd --help");
-        System.out.println("options:");
-        System.out.println("  -c, --config Set the config file.");
-        System.out.println("  -h, --help Display the help.");
+    public static void usageClient(Channel channel) {
+        String usageMessage = "usage:\n" +
+            "kdcd\n" +
+            "kdcd --config <configfile>\n" +
+            "kdcd --help\n" +
+            "options:\n" +
+            "  -c, --config Set the config file.\n" +
+            "  -h, --help Display the help.\n";
+        
+        sendMessageToChannel(channel, usageMessage);
         System.exit(1);
     }
 
@@ -34,10 +37,10 @@ public class KDCServer {
         if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
             configFile = args[1];
         } else if (args.length == 1 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            usageClient();
+            usageClient(null); // Null passed since no active channel in `main` method context
         } else if (args.length > 0) {
             System.err.println("Invalid arguments provided.");
-            usageClient();
+            usageClient(null);
         }
 
         loadConfig(configFile);
@@ -64,7 +67,8 @@ public class KDCServer {
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                executorService.submit(new ConnectionHandler(clientSocket, nonceCache));
+                Channel channel = new Channel(clientSocket);
+                executorService.submit(new ConnectionHandler(channel, nonceCache));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -75,12 +79,14 @@ public class KDCServer {
         try {
             File file = new File(configFile);
             if (!file.exists()) {
-                System.err.println("Config file not found and must be created: " + configFile);
+                sendMessageToChannel(null, "Config file not found and must be created: " + configFile); // No channel, sent to console
+                System.exit(1);
             }
 
             JSONObject configJson = JsonIO.readObject(new File(configFile));
             if (configJson == null) {
-                throw new IOException("Error reading configuration file");
+                sendMessageToChannel(null, "Error reading configuration file");
+                System.exit(1);
             }
 
             config = new Config();
@@ -93,13 +99,13 @@ public class KDCServer {
                 try {
                     config.validityPeriod = Long.parseLong((String) validityObj);
                 } catch (NumberFormatException e) {
-                    System.err.println("Invalid 'validity-period' format in config. Using default: 60000 ms.");
+                    sendMessageToChannel(null, "Invalid 'validity-period' format in config. Using default: 60000 ms.");
                     config.validityPeriod = 60000L; // Default fallback
                 }
             }
 
             loadSecrets(config.secretsFile);
-            System.out.println("Loaded configuration from: " + configFile);
+            sendMessageToChannel(null, "Loaded configuration from: " + configFile);
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);
@@ -114,7 +120,8 @@ public class KDCServer {
             }
 
             if (!file.exists()) {
-                System.out.println("Secrets file not found, this must be created");
+                sendMessageToChannel(null, "Secrets file not found, this must be created");
+                System.exit(1);
             }
 
             JSONObject secretsJson = JsonIO.readObject(file);
@@ -133,17 +140,28 @@ public class KDCServer {
                 String secret = secretObj.getString("secret");
 
                 if (user == null || secret == null) {
-                    System.err.println("Warning: Missing 'user' or 'secret' in entry " + i);
+                    sendMessageToChannel(null, "Warning: Missing 'user' or 'secret' in entry " + i);
                     continue;
                 }
 
                 secrets.put(user, secret);
-                System.out.println("Loaded secret for user: " + user);
+                sendMessageToChannel(null, "Loaded secret for user: " + user);
             }
 
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);
+        }
+    }
+
+    private static void sendMessageToChannel(Channel channel, String message) {
+        if (channel != null) {
+            JSONObject jsonMessage = new JSONObject();
+            jsonMessage.put("message", message);
+            channel.sendMessage(jsonMessage);
+        } else {
+            // Print to console if no active channel
+            System.out.println(message);
         }
     }
 }
