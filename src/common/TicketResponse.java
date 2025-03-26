@@ -1,8 +1,13 @@
 package common;
 
+import java.io.InvalidObjectException;
 import java.util.Base64;
 
-public class TicketResponse {
+import merrimackutil.json.JSONSerializable;
+import merrimackutil.json.types.JSONObject;
+import merrimackutil.json.types.JSONType;
+
+public class TicketResponse implements JSONSerializable{
     private String type;        // "Ticket Response"
     private String sessionKey;  // Encrypted session key
     private Ticket ticket;      // Ticket information
@@ -38,10 +43,47 @@ public class TicketResponse {
         this.ticket = ticket;
     }
 
-    // Utility to serialize TicketResponse to JSON string (or use a JSON library like Gson or Jackson)
-    public String toJson() {
-        return "{ \"type\": \"" + type + "\", " +
-               "\"sessionKey\": \"" + sessionKey + "\", " +
-               "\"ticket\": " + ticket.toJson() + " }";
+    @Override
+    public void deserialize(JSONType arg0) throws InvalidObjectException {
+        if (!(arg0 instanceof JSONObject)) {
+            throw new InvalidObjectException("Expected a JSON object");
+        }
+
+        JSONObject json = (JSONObject) arg0;
+
+        this.type = json.getString("type");
+        this.sessionKey = json.getString("sessionKey");
+
+        JSONObject ticketJson = json.getObject("ticket");
+
+        Ticket t = new Ticket(
+            ticketJson.getString("username"),
+            ticketJson.getString("service"),
+            ticketJson.getLong("validityTime"),
+            ticketJson.getString("iv"),
+            ticketJson.getString("encryptedSessionKey")
+        );
+        t.setCreationTime(ticketJson.getLong("creationTime"));
+
+        this.ticket = t;
+    }
+
+    @Override
+    public JSONType toJSONType() {
+        JSONObject json = new JSONObject();
+        json.put("type", this.type);
+        json.put("sessionKey", this.sessionKey);
+
+        // Build ticket as a JSONObject
+        JSONObject ticketJson = new JSONObject();
+        ticketJson.put("creationTime", ticket.getCreationTime());
+        ticketJson.put("validityTime", ticket.getValidityTime());
+        ticketJson.put("username", ticket.getUsername());
+        ticketJson.put("service", ticket.getService());
+        ticketJson.put("iv", ticket.getIv());
+        ticketJson.put("encryptedSessionKey", ticket.getEncryptedSessionKey());
+
+        json.put("ticket", ticketJson);
+        return json;
     }
 }

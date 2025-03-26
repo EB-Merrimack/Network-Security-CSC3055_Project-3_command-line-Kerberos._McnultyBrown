@@ -6,24 +6,27 @@ import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import common.Channel;
 import common.ConnectionHandler;
+import merrimackutil.json.JsonIO;
 import merrimackutil.util.NonceCache;  // Import NonceCache
 
 public class EchoService {
 
     private static String configFile = null; // Config file must be explicitly set
     private static NonceCache nonceCache; // NonceCache instance to prevent replay attacks
-
-    public static void usageClient() {
-        System.out.println("usage:");
-        System.out.println("  echoservice");
-        System.out.println("  echoservice --config <configfile>");
-        System.out.println("  echoservice --help");
-        System.out.println("options:");
-        System.out.println("  -c, --config <configfile>   Set the config file.");
-        System.out.println("  -h, --help                  Display the help.");
-        System.exit(0);
+    private static Channel channel; // Channel instance for sending messages
+    public static void usageClient(Channel channel) {
+        // Create an instance of the UsageMessage class
+        UsageMessage usageMessage = new UsageMessage();
+    
+        // Send the serialized JSON object over the channel using JsonIO.writeSerializedObject
+        JsonIO.writeSerializedObject(usageMessage, channel.getWriter());  // Ensure you're passing PrintWriter
+    
+        // Exit the program
+        System.exit(1);
     }
+    
 
     public static void main(String[] args) {
         // If no arguments are provided, or if "echoservice" is provided, start the default EchoService
@@ -37,7 +40,7 @@ public class EchoService {
             switch (args[i]) {
                 case "-h":
                 case "--help":
-                    usageClient();
+                    usageClient(channel);
                     return;
                 case "-c":
                 case "--config":
@@ -45,17 +48,14 @@ public class EchoService {
                         configFile = args[i + 1];
                         i++; // Skip the next argument (config file name)
                     } else {
-                        System.err.println("Error: Missing <configfile> after -c/--config.");
-                        usageClient();
+                        throw new IllegalArgumentException("Error: Missing <configfile> after -c/--config.");
                     }
                     break;
                 default:
                     if (args[i].equalsIgnoreCase("echoservice")) {
                         continue;
                     }
-                    System.err.println("Error: Unrecognized option: " + args[i]);
-                    usageClient();
-                    return;
+                    throw new IllegalArgumentException("Error: Unrecognized option: " + args[i]);
             }
         }
 
@@ -68,7 +68,7 @@ public class EchoService {
      */
     private static void startServer(String configFile) {
         if (configFile == null) {
-            System.out.println("No configuration file provided. Running EchoService with default settings...");
+            throw new IllegalArgumentException("No configuration file provided. Running EchoService with default settings...");
         } else {
             System.out.println("Using configuration file: " + configFile);
         }
@@ -86,7 +86,7 @@ public class EchoService {
                     Socket sock = server.accept();
                     System.out.println("Connection received.");
                     // Pass the nonce cache to the connection handler
-                    pool.execute(new ConnectionHandler(sock, nonceCache));
+                    pool.execute(new ConnectionHandler(channel, nonceCache));
                 }
             } catch (IOException ioe) {
                 ioe.printStackTrace();
