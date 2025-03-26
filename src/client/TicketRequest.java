@@ -50,6 +50,13 @@ public class TicketRequest implements JSONSerializable, JSONType {
     }
 
    
+    public String getId() {
+        return id;
+    }
+    
+    public String getService() {
+        return service;
+    }
 
     // Main method for testing
     public static void main(String[] args) {
