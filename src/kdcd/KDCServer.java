@@ -155,12 +155,14 @@ public class KDCServer {
 
     private static void sendMessageToChannel(Channel channel, String message) {
         if (channel != null) {
-            JSONObject jsonMessage = new JSONObject();
-            jsonMessage.put("message", message);
-            channel.sendMessage(jsonMessage);
+          
+            // Send the  JSON string as a message to be writen as serializable by the channel
+            channel.getWriter().println(message);
         } else {
             // Print to console if no active channel
             System.out.println(message);
         }
     }
+    
+    
 }
