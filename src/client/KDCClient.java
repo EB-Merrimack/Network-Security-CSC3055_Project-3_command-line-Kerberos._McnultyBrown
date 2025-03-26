@@ -7,7 +7,6 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.security.MessageDigest;
 import java.util.Base64;
-import java.util.Scanner;
 
 import common.Channel;
 import common.CryptoUtils;
@@ -41,6 +40,7 @@ public class KDCClient {
         System.exit(1);
     }
 
+    
     public static String promptForUsername(String msg) {
         String usrnm;
         Console cons = System.console();
@@ -82,7 +82,6 @@ public class KDCClient {
 
             switch (currOpt.getFirst()) {
                 case 'h':
-                    // Optionally support setting custom hosts file here
                     break;
                 case 'u':
                     user = currOpt.getSecond();
@@ -97,7 +96,7 @@ public class KDCClient {
     public static Tuple<String, Integer> getHostInfo(String hostName) {
         File file = new File("hosts.json");
 
-        // Step 1: If file doesn't exist, create a default one
+        //If file doesn't exist, create a default one
         if (!file.exists()) {
             try {
                 System.out.println("Creating default hosts.json...");
@@ -115,16 +114,16 @@ public class KDCClient {
 
                 try (PrintWriter writer = new PrintWriter(file)) {
                     writer.println(root.getFormattedJSON());
-                    System.out.println("✅ hosts.json created manually before loading.");
+                    System.out.println("hosts.json created manually before loading.");
                 }
 
             } catch (IOException e) {
-                System.err.println("❌ Failed to create hosts.json: " + e.getMessage());
+                System.err.println("Failed to create hosts.json: " + e.getMessage());
                 System.exit(1);
             }
         }
 
-        // Step 2: Load host info
+        //Load host info
         try {
             HostsDatabase db = new HostsDatabase(file);
 
@@ -146,18 +145,18 @@ public class KDCClient {
 
     public static Channel authenticateWithKDC(String username, String password, String host, int port) {
         try {
-            // 🔓 Open connection manually (do NOT auto-close with try-with-resources)
+            // Open connection manually
             Socket socket = new Socket(host, port);
             Channel channel = new Channel(socket);
     
-            // 📩 Message 1: Send identity claim
+            // Message 1: Send identity claim
             RFC1994Claim claim = new RFC1994Claim(username);
             channel.sendMessage(claim);
     
-            // 📩 Message 2: Receive challenge
+            // Message 2: Receive challenge
             JSONObject challengeJson = channel.receiveMessage();
             if (!challengeJson.getString("type").equals("RFC1994 Challenge")) {
-                System.out.println("❌ Authentication failed: Unknown user or bad response");
+                System.out.println("Authentication failed: Unknown user or bad response");
                 channel.close(); // clean up
                 return null;
             }
@@ -166,32 +165,32 @@ public class KDCClient {
             challenge.deserialize(challengeJson);
             byte[] challengeBytes = Base64.getDecoder().decode(challenge.getChallenge());
     
-            // 🔐 Compute hash of (password + challenge) using SHA-256
+            // Compute hash of password and challenge using SHA-256
             byte[] secretBytes = (password + new String(challengeBytes)).getBytes();
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest(secretBytes);
             String hashBase64 = Base64.getEncoder().encodeToString(hashBytes);
     
-            // 📩 Message 3: Send response
+            // Message 3: Send response
             RFC1994Response response = new RFC1994Response(hashBase64);
             channel.sendMessage(response);
     
-            // 📩 Message 4: Receive result
+            // Message 4: Receive result
             JSONObject resultJson = channel.receiveMessage();
             RFC1994Result result = new RFC1994Result(false);
             result.deserialize(resultJson);
     
             if (result.getResult()) {
-                System.out.println("✅ Authentication successful");
+                System.out.println("Authentication successful");
                 return channel; // return open channel
             } else {
-                System.out.println("❌ Authentication failed: Invalid password");
+                System.out.println("Authentication failed: Invalid password");
                 channel.close();
                 return null;
             }
     
         } catch (Exception e) {
-            System.err.println("❌ Error during authentication: " + e.getMessage());
+            System.err.println("Error during authentication: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
@@ -241,12 +240,12 @@ public class KDCClient {
                 String combined = combineIVandCipher(resp.getTicket().getIv(), resp.getSessionKey());
                 String decryptedBase64Key = CryptoUtils.decryptAESGCM(combined, password);
 
-                System.out.println("✅ Ticket and session key received");
-                System.out.println("🔑 Session key (base64): " + decryptedBase64Key);
+                System.out.println("Ticket and session key received");
+                System.out.println("Session key (base64): " + decryptedBase64Key);
 
                 channel.close();
             } catch (Exception e) {
-                System.err.println("❌ Error requesting session key: " + e.getMessage());
+                System.err.println("Error requesting session key: " + e.getMessage());
             }
         }
     }
