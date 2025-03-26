@@ -48,17 +48,14 @@ public class EchoService {
                         configFile = args[i + 1];
                         i++; // Skip the next argument (config file name)
                     } else {
-                        System.err.println("Error: Missing <configfile> after -c/--config.");
-                        usageClient(channel);
+                        throw new IllegalArgumentException("Error: Missing <configfile> after -c/--config.");
                     }
                     break;
                 default:
                     if (args[i].equalsIgnoreCase("echoservice")) {
                         continue;
                     }
-                    System.err.println("Error: Unrecognized option: " + args[i]);
-                    usageClient(channel);
-                    return;
+                    throw new IllegalArgumentException("Error: Unrecognized option: " + args[i]);
             }
         }
 
@@ -71,7 +68,7 @@ public class EchoService {
      */
     private static void startServer(String configFile) {
         if (configFile == null) {
-            System.out.println("No configuration file provided. Running EchoService with default settings...");
+            throw new IllegalArgumentException("No configuration file provided. Running EchoService with default settings...");
         } else {
             System.out.println("Using configuration file: " + configFile);
         }

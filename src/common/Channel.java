@@ -7,6 +7,7 @@ import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.json.types.JSONType;
 import java.io.InvalidObjectException;
+
 public class Channel implements JSONSerializable {
     private final Socket socket;
     private final BufferedReader reader;
@@ -16,6 +17,15 @@ public class Channel implements JSONSerializable {
         this.socket = socket;
         this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
+    }
+
+    public void sendMessage(JSONObject jsonMessage2) {
+            // Create a JSONObject and wrap the string message inside it
+            JSONObject jsonMessage = new JSONObject();
+            jsonMessage.put("message", jsonMessage2);
+
+        // Send the JSONObject using the existing sendMessage method
+        sendMessage(jsonMessage);
     }
 
     public void sendMessage(JSONSerializable message) {
@@ -59,4 +69,3 @@ public class Channel implements JSONSerializable {
         return writer; // Return the PrintWriter instance to allow other methods to use it
     }
 }
-
