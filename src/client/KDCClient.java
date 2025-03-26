@@ -143,52 +143,56 @@ public class KDCClient {
         }
     }
 
-    public static boolean authenticateWithKDC(String username, String password, String host, int port) {
-        try (Socket socket = new Socket(host, port)) {
+    public static Channel authenticateWithKDC(String username, String password, String host, int port) {
+        try {
+            // 🔓 Open connection manually (do NOT auto-close with try-with-resources)
+            Socket socket = new Socket(host, port);
             Channel channel = new Channel(socket);
-
+    
             // 📩 Message 1: Send identity claim
             RFC1994Claim claim = new RFC1994Claim(username);
             channel.sendMessage(claim);
-
+    
             // 📩 Message 2: Receive challenge
             JSONObject challengeJson = channel.receiveMessage();
             if (!challengeJson.getString("type").equals("RFC1994 Challenge")) {
                 System.out.println("❌ Authentication failed: Unknown user or bad response");
-                return false;
+                channel.close(); // clean up
+                return null;
             }
-
+    
             RFC1994Challenge challenge = new RFC1994Challenge("");
             challenge.deserialize(challengeJson);
             byte[] challengeBytes = Base64.getDecoder().decode(challenge.getChallenge());
-
+    
             // 🔐 Compute hash of (password + challenge) using SHA-256
             byte[] secretBytes = (password + new String(challengeBytes)).getBytes();
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest(secretBytes);
             String hashBase64 = Base64.getEncoder().encodeToString(hashBytes);
-
+    
             // 📩 Message 3: Send response
             RFC1994Response response = new RFC1994Response(hashBase64);
             channel.sendMessage(response);
-
+    
             // 📩 Message 4: Receive result
             JSONObject resultJson = channel.receiveMessage();
             RFC1994Result result = new RFC1994Result(false);
             result.deserialize(resultJson);
-
+    
             if (result.getResult()) {
                 System.out.println("✅ Authentication successful");
-                return true;
+                return channel; // return open channel
             } else {
                 System.out.println("❌ Authentication failed: Invalid password");
-                return false;
+                channel.close();
+                return null;
             }
-
+    
         } catch (Exception e) {
             System.err.println("❌ Error during authentication: " + e.getMessage());
             e.printStackTrace();
-            return false;
+            return null;
         }
     }
 
@@ -223,28 +227,23 @@ public class KDCClient {
         kdcHost = kdcHostInfo.getFirst();
         kdcPort = kdcHostInfo.getSecond();
 
-        if (authenticateWithKDC(user, password, kdcHost, kdcPort)) {
-            try (Socket socket = new Socket(kdcHost, kdcPort)) {
-                Channel channel = new Channel(socket);
-
-                // 📨 Send TicketRequest
+        Channel channel = authenticateWithKDC(user, password, kdcHost, kdcPort);
+        if (channel != null) {
+            try {
                 TicketRequest req = new TicketRequest(service, user);
                 channel.sendMessage(req);
 
-                // 📥 Receive TicketResponse
                 JSONObject respJson = channel.receiveMessage();
                 TicketResponse resp = new TicketResponse(null, null);
                 resp.deserialize(respJson);
 
-                // 🔐 Decrypt session key using CryptoUtils
-                String encSessionKey = resp.getSessionKey();  // base64-encoded (IV + encrypted)
-                String decryptedBase64Key = CryptoUtils.decryptAESGCM(
-                    combineIVandCipher(resp.getTicket().getIv(), resp.getSessionKey()), password
-                );
+                String combined = combineIVandCipher(resp.getTicket().getIv(), resp.getSessionKey());
+                String decryptedBase64Key = CryptoUtils.decryptAESGCM(combined, password);
 
                 System.out.println("✅ Ticket and session key received");
                 System.out.println("🔑 Session key (base64): " + decryptedBase64Key);
 
+                channel.close();
             } catch (Exception e) {
                 System.err.println("❌ Error requesting session key: " + e.getMessage());
             }
