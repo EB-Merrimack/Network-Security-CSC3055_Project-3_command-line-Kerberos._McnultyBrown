@@ -1,14 +1,16 @@
-package kdcd;
+package echoservice;
 
 import java.io.InvalidObjectException;
+
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.json.types.JSONType;
 
 public class Config implements JSONSerializable {
-    public String secretsFile;
     public int port;
-    public long validityPeriod;
+    public boolean debug;
+    public String serviceName;
+    public String serviceSecret;
 
     @Override
     public void deserialize(JSONType json) throws InvalidObjectException {
@@ -16,18 +18,20 @@ public class Config implements JSONSerializable {
             throw new InvalidObjectException("Invalid JSON format for Config");
         }
         JSONObject jsonObject = (JSONObject) json;
-        this.secretsFile = jsonObject.getString("secrets-file");
         this.port = jsonObject.getInt("port");
-        this.validityPeriod = jsonObject.getLong("validity-period");
-    }
+        this.debug = jsonObject.getBoolean("debug");
+        this.serviceName = jsonObject.getString("service-name");
+        this.serviceSecret = jsonObject.getString("service-secret");
 
+      
+    }
     @Override
     public JSONType toJSONType() {
         JSONObject jsonObject = new JSONObject();
-        jsonObject.put("secrets-file", this.secretsFile);
         jsonObject.put("port", this.port);
-        jsonObject.put("validity-period", this.validityPeriod);
+        jsonObject.put("debug", this.debug);
+        jsonObject.put("service-name", this.serviceName);
+        jsonObject.put("service-secret", this.serviceSecret);
         return jsonObject;
     }
-
 }
