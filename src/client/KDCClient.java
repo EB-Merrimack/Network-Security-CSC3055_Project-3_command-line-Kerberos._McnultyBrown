@@ -325,6 +325,8 @@ public class KDCClient {
                 System.out.println("Ticket and session key received");
                 System.out.println("Session key (base64): " + decryptedBase64Key);
 
+                connectToService(resp, password);
+
                 channel.close();
             } catch (Exception e) {
                 System.err.println("Error requesting session key: " + e.getMessage());

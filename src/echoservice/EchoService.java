@@ -11,6 +11,7 @@ import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
 import common.Channel;
 import common.ConnectionHandler;
+import common.EchoServiceHandler;
 import merrimackutil.util.NonceCache;
 
 public class EchoService {
@@ -57,41 +58,33 @@ public class EchoService {
      */
     private static void startServer(String configFile) {
         if (configFile == null) {
-            throw new IllegalArgumentException("No configuration file provided. Running EchoService with default settings...");
-        } else {
-            System.out.println("Using configuration file: " + configFile);
+            configFile = DEFAULT_CONFIG_FILE;
         }
-
-        // Load the configuration from the JSON file
+    
+        System.out.println("Using configuration file: " + configFile);
+    
         try {
             loadConfig(configFile);
         } catch (IOException e) {
             System.err.println("Error loading configuration: " + e.getMessage());
             return;
         }
-
-        // Create a new thread to run the EchoService so it doesn't block the command line
-        Thread serverThread = new Thread(() -> {
+    
+        // ✅ Start server immediately (NO background thread for now)
+        try (ServerSocket server = new ServerSocket(config.port)) {
+            System.out.println("EchoService started on port " + config.port);
             ExecutorService pool = Executors.newFixedThreadPool(10);
-
-            try (ServerSocket server = new ServerSocket(config.port)) {  // Use port from config
-                System.out.println("EchoService started on port " + config.port);
-                while (true) {
-                    Socket sock = server.accept();
-                    System.out.println("Connection received.");
-                    // Pass the nonce cache to the connection handler
-                    pool.execute(new ConnectionHandler(channel, nonceCache));
-                }
-            } catch (IOException ioe) {
-                ioe.printStackTrace();
+    
+            while (true) {
+                Socket sock = server.accept();
+                System.out.println("Connection received.");
+                Channel connChannel = new Channel(sock);
+                pool.execute(new EchoServiceHandler(connChannel, nonceCache));
             }
-        });
-
-        // Start the server in a background thread
-        serverThread.setDaemon(true);  // Set the thread as daemon so it doesn't block program termination
-        serverThread.start();
-        
-        System.out.println("EchoService is now running in the background. You can return to the command line.");
+    
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
