@@ -1,6 +1,8 @@
 package common;
 
 import java.io.IOException;
+
+import kdcd.KDCServer;
 import merrimackutil.util.NonceCache;
 import merrimackutil.json.types.JSONObject;
 
@@ -27,6 +29,15 @@ public class ConnectionHandler implements Runnable
     {
         try
         {
+
+             ChapHandler chap = new ChapHandler(channel, nonceCache, KDCServer.getSecrets());
+            chap.run(); // Run CHAP protocol
+
+            // ✅ If CHAP succeeded, proceed to handle TicketRequest...
+            // This would be your next step in the protocol (we can do this next)
+        
+
+
             // Receive the nonce from the client (as part of the message)
             JSONObject message = channel.receiveMessage();
             byte[] receivedNonce = extractNonceFromMessage(message);
@@ -71,6 +82,7 @@ public class ConnectionHandler implements Runnable
         catch (IOException ex)
         {
             ex.printStackTrace();
+            channel.close();
         }    
     }
 

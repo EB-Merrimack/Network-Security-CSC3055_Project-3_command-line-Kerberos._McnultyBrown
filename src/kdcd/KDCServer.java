@@ -164,5 +164,7 @@ public class KDCServer {
         }
     }
     
-    
+    public static Map<String, String> getSecrets() {
+        return secrets;
+    }
 }
