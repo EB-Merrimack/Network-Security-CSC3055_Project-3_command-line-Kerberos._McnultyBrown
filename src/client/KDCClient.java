@@ -11,7 +11,7 @@ import java.util.Scanner;
 
 import common.Channel;
 import common.CryptoUtils;
-import kdcd.TicketResponse;
+import common.TicketResponse;
 import merrimackutil.cli.LongOption;
 import merrimackutil.cli.OptionParser;
 import merrimackutil.json.types.JSONArray;
