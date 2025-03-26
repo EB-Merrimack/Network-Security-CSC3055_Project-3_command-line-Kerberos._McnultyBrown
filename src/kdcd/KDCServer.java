@@ -14,9 +14,10 @@ import merrimackutil.util.NonceCache;
 public class KDCServer {
     private static Config config;
     private static Map<String, String> secrets = new HashMap<>();
-    private static NonceCache nonceCache;  
+    private static NonceCache nonceCache;
     private static final String DEFAULT_CONFIG_FILE = "src/kdcd/config.json";
-       public static void usageClient() {
+
+    public static void usageClient() {
         System.out.println("usage:");
         System.out.println("kdcd");
         System.out.println("kdcd --config <configfile>");
@@ -28,25 +29,26 @@ public class KDCServer {
     }
 
     public static void main(String[] args) {
-        if (args.length == 0 || args[0].equals("kdcd")) {
-            loadConfig(getCachedConfigPath().orElse(DEFAULT_CONFIG_FILE));
-            startServer();
-        } else if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
-            loadConfig(args[1]);
-            startServer();
+        String configFile = DEFAULT_CONFIG_FILE;
+        
+        if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
+            configFile = args[1];
         } else if (args.length == 1 && (args[0].equals("-h") || args[0].equals("--help"))) {
             usageClient();
-        } else {
+        } else if (args.length > 0) {
             System.err.println("Invalid arguments provided.");
             usageClient();
         }
+
+        loadConfig(configFile);
+        startServer();
     }
 
     private static void startServer() {
         System.out.println("Starting KDC server on port " + config.port);
         try (ServerSocket serverSocket = new ServerSocket(config.port)) {
             ExecutorService executorService = Executors.newFixedThreadPool(10);
-            nonceCache = new NonceCache(16, 60); 
+            nonceCache = new NonceCache(16, 60);
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("Shutting down KDC server...");
@@ -62,7 +64,7 @@ public class KDCServer {
 
             while (true) {
                 Socket clientSocket = serverSocket.accept();
-                executorService.submit(new ConnectionHandler(clientSocket, nonceCache)); 
+                executorService.submit(new ConnectionHandler(clientSocket, nonceCache));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -97,8 +99,6 @@ public class KDCServer {
                 }
             }
 
-
-            saveCachedConfigPath(configFile);
             loadSecrets(config.secretsFile);
             System.out.println("Loaded configuration from: " + configFile);
         } catch (IOException e) {
@@ -107,69 +107,44 @@ public class KDCServer {
         }
     }
 
-private static void loadSecrets(String secretsFile) {
-    try {
-        // Ensure secrets file is inside kdcd directory
-        File file = new File(secretsFile);
-        if (!file.isAbsolute()) {
-            file = new File("src/kdcd", secretsFile);
-        }
+    private static void loadSecrets(String secretsFile) {
+        try {
+            File file = new File(secretsFile);
+            if (!file.isAbsolute()) {
+                file = new File("src/kdcd", secretsFile);
+            }
 
-        if (!file.exists()) {
-            System.out.println("Secrets file not found, creating new secret store file");
-            Secret.createDefaultSecretsFile(file);
+            if (!file.exists()) {
+                System.out.println("Secrets file not found, this must be created");
+            }
 
-        }
+            JSONObject secretsJson = JsonIO.readObject(file);
+            if (secretsJson == null) {
+                throw new IOException("Error reading secrets file");
+            }
 
-        JSONObject secretsJson = JsonIO.readObject(file);
-        if (secretsJson == null) {
-            throw new IOException("Error reading secrets file");
-        }
+            JSONArray secretsArray = secretsJson.getArray("secrets");
+            if (secretsArray == null) {
+                throw new IOException("No 'secrets' array found in secrets file.");
+            }
 
-        JSONArray secretsArray = secretsJson.getArray("secrets");
-        if (secretsArray == null) {
-            throw new IOException("No 'secrets' array found in secrets file.");
-        }
-
-        for (int i = 0; i < secretsArray.size(); i++) {
-            JSONObject secretObj = secretsArray.getObject(i);
-            String user = secretObj.getString("user");
-            String secret = secretObj.getString("secret");
+            for (int i = 0; i < secretsArray.size(); i++) {
+                JSONObject secretObj = secretsArray.getObject(i);
+                String user = secretObj.getString("user");
+                String secret = secretObj.getString("secret");
 
                 if (user == null || secret == null) {
                     System.err.println("Warning: Missing 'user' or 'secret' in entry " + i);
                     continue;
                 }
 
-            secrets.put(user, secret);
-            System.out.println("Loaded secret for user: " + user);
-        }
+                secrets.put(user, secret);
+                System.out.println("Loaded secret for user: " + user);
+            }
 
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);
-        }
-    }
-
-   
-
-    private static Optional<String> getCachedConfigPath() {
-        File cacheFile = new File("src/kdcd/config.cache");
-        if (cacheFile.exists()) {
-            try (BufferedReader reader = new BufferedReader(new FileReader(cacheFile))) {
-                return Optional.ofNullable(reader.readLine());
-            } catch (IOException e) {
-                System.err.println("Warning: Could not read config cache.");
-            }
-        }
-        return Optional.empty();
-    }
-
-    private static void saveCachedConfigPath(String configFile) {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter("src/kdcd/config.cache"))) {
-            writer.write(configFile);
-        } catch (IOException e) {
-            System.err.println("Warning: Could not save config cache.");
         }
     }
 }
