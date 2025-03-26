@@ -1,8 +1,9 @@
-package common;
+package kdcd;
 
 import java.io.InvalidObjectException;
 import java.util.Base64;
 
+import common.Ticket;
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.json.types.JSONType;
