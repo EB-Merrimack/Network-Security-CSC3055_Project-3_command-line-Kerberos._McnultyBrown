@@ -19,6 +19,12 @@ public class Channel implements JSONSerializable {
         this.writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
     }
 
+    /**
+     * takes a jason object and makes it serializable to be able to be writen 
+     * through the send message method
+     * 
+     * @param message The message to send, as a JSONObject.
+     */
     public void sendMessage(JSONObject jsonMessage2) {
             // Create a JSONObject and wrap the string message inside it
             JSONObject jsonMessage = new JSONObject();
@@ -28,11 +34,28 @@ public class Channel implements JSONSerializable {
         sendMessage(jsonMessage);
     }
 
+    /**
+     * Send a message over the channel to the socket. 
+     * using write serialized object
+     * 
+     * @param message The message to send, as a JSONSerializable object.
+     */
     public void sendMessage(JSONSerializable message) {
         // Use JsonIO.writeSerializedObject to serialize and send the JSON object
         JsonIO.writeSerializedObject(message, writer);
         System.out.println("Sent: " + message.toString());
     }
+
+    /**
+     * Receives a message from the channel.
+     * 
+     * This method reads a line from the input stream of the socket, 
+     * deserializes it into a JSONObject, and returns it. If the connection 
+     * is closed by the peer, an IOException is thrown.
+     * 
+     * @return The received message as a JSONObject.
+     * @throws IOException If the connection is closed by the peer.
+     */
 
     public JSONObject receiveMessage() throws IOException {
         String line = reader.readLine();
@@ -43,6 +66,15 @@ public class Channel implements JSONSerializable {
         return JsonIO.readObject(line); // Deserialize received string into JSONObject
     }
 
+    /**
+     * Close the channel and associated socket.
+     * 
+     * This method calls the close methods of the reader, writer, and socket in
+     * order to release any system resources associated with the channel.
+     * 
+     * If an IOException is thrown in the process of closing the channel, an
+     * error message is printed to System.err.
+     */
     public void close() {
         try {
             reader.close();
@@ -53,12 +85,30 @@ public class Channel implements JSONSerializable {
         }
     }
 
+    /**
+     * Deserialize a Channel from a JSONType.
+     * 
+     * This method expects the JSONType to be a JSONObject. If the JSONType is
+     * not a JSONObject, an InvalidObjectException is thrown.
+     * 
+     * @param json The JSONType containing the serialized Channel.
+     * @throws InvalidObjectException If the JSONType is not a JSONObject.
+     */
     @Override
     public void deserialize(JSONType json) throws InvalidObjectException {
         if (!(json instanceof JSONObject)) {
             throw new InvalidObjectException("Invalid JSON format for Channel");
         }
     }
+
+/**
+ * Serialize the Channel to a JSONType.
+ * 
+ * The serialized JSONType is an empty JSONObject, as the Channel 
+ * currently does not contain serializable fields.
+ * 
+ * @return The JSONType containing the serialized Channel.
+ */
 
     @Override
     public JSONType toJSONType() {
