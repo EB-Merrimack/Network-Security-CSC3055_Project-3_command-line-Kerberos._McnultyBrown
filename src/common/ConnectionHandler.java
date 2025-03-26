@@ -2,9 +2,7 @@ package common;
 
 import java.io.IOException;
 import merrimackutil.util.NonceCache;
-import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
-
 
 public class ConnectionHandler implements Runnable
 {
@@ -33,28 +31,41 @@ public class ConnectionHandler implements Runnable
             JSONObject message = channel.receiveMessage();
             byte[] receivedNonce = extractNonceFromMessage(message);
 
-            // Check if the nonce has been used before
             if (nonceCache.containsNonce(receivedNonce)) {
+                // Create a JSONObject to represent the error message
                 JSONObject response = new JSONObject();
                 response.put("error", "Nonce replay detected! Request rejected.");
-                channel.sendMessage(response);
+                
+                // Convert the response JSONObject to a JSON string
+                String jsonResponse = response.toString();  // Convert JSONObject to string
+                
+                // Send the JSON string over the channel
+                channel.getWriter().println(jsonResponse);  // Send the string over the channel
+                
+                // Close the channel to terminate the connection
                 channel.close();
-                return;  // Reject the connection if the nonce is a replay
+                
+                // Return to reject further processing of this request
+                return;
             }
+            
+            // Continue processing the request if the nonce was not a replay...
 
             // Process the received message (convert to uppercase for echoing)
             String receivedData = message.getString("data");  // Assuming "data" is the key
             String responseData = receivedData.toUpperCase();
 
-            // Send the response back to the client
+            // Create a new JSONObject and add data
             JSONObject response = new JSONObject();
             response.put("data", responseData);
-            channel.sendMessage(response);
 
-            // Add the nonce to the cache to prevent replay attacks
-            nonceCache.addNonce(receivedNonce);
+            // Convert the response JSONObject to a JSON string
+            String jsonResponse = response.toString();  // Convert JSONObject to string
+            
+            // Send the JSON string over the channel
+            channel.getWriter().println(jsonResponse);  // Send the string over the channel
 
-            // Close the connection
+            // Close the channel to terminate the connection (if needed)
             channel.close();
         }
         catch (IOException ex)
