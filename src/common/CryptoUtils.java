@@ -1,6 +1,7 @@
 package common;
 
 import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -48,6 +49,21 @@ public class CryptoUtils {
         Cipher cipher = Cipher.getInstance(AES_GCM_MODE);
         GCMParameterSpec spec = new GCMParameterSpec(128, iv);
         cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, AES_ALGORITHM), spec);
+
+        byte[] decryptedMessage = cipher.doFinal(cipherText);
+        return new String(decryptedMessage, StandardCharsets.UTF_8);
+    }
+
+    public static String decryptAESGCM(String encryptedBase64, SecretKey key) throws Exception {
+        byte[] decodedMessage = Base64.getDecoder().decode(encryptedBase64);
+        byte[] iv = new byte[12];
+        System.arraycopy(decodedMessage, 0, iv, 0, iv.length);
+        byte[] cipherText = new byte[decodedMessage.length - iv.length];
+        System.arraycopy(decodedMessage, iv.length, cipherText, 0, cipherText.length);
+
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+        cipher.init(Cipher.DECRYPT_MODE, key, spec);
 
         byte[] decryptedMessage = cipher.doFinal(cipherText);
         return new String(decryptedMessage, StandardCharsets.UTF_8);
