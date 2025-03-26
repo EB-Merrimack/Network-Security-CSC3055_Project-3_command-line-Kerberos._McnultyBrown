@@ -6,19 +6,26 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.security.MessageDigest;
-import java.util.Scanner;
+import java.util.Base64;
 
+import common.Channel;
+import common.CryptoUtils;
+import common.TicketRequest;
+import common.TicketResponse;
 import merrimackutil.cli.LongOption;
 import merrimackutil.cli.OptionParser;
 import merrimackutil.json.types.JSONArray;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.net.hostdb.HostsDatabase;
 import merrimackutil.util.Tuple;
+import protocol.RFC1994Challenge;
+import protocol.RFC1994Claim;
+import protocol.RFC1994Response;
+import protocol.RFC1994Result;
 
 public class KDCClient {
     private static String user = null;
     private static String service = null;
-    private static HostsDatabase hostsDb;
     private static String kdcHost;
     private static int kdcPort;
 
@@ -33,6 +40,7 @@ public class KDCClient {
         System.exit(1);
     }
 
+    
     public static String promptForUsername(String msg) {
         String usrnm;
         Console cons = System.console();
@@ -74,7 +82,6 @@ public class KDCClient {
 
             switch (currOpt.getFirst()) {
                 case 'h':
-                    // Optionally support setting custom hosts file here
                     break;
                 case 'u':
                     user = currOpt.getSecond();
@@ -89,7 +96,7 @@ public class KDCClient {
     public static Tuple<String, Integer> getHostInfo(String hostName) {
         File file = new File("hosts.json");
 
-        // Step 1: If file doesn't exist, create a default one
+        //If file doesn't exist, create a default one
         if (!file.exists()) {
             try {
                 System.out.println("Creating default hosts.json...");
@@ -107,16 +114,16 @@ public class KDCClient {
 
                 try (PrintWriter writer = new PrintWriter(file)) {
                     writer.println(root.getFormattedJSON());
-                    System.out.println("✅ hosts.json created manually before loading.");
+                    System.out.println("hosts.json created manually before loading.");
                 }
 
             } catch (IOException e) {
-                System.err.println("❌ Failed to create hosts.json: " + e.getMessage());
+                System.err.println("Failed to create hosts.json: " + e.getMessage());
                 System.exit(1);
             }
         }
 
-        // Step 2: Load host info
+        //Load host info
         try {
             HostsDatabase db = new HostsDatabase(file);
 
@@ -136,41 +143,56 @@ public class KDCClient {
         }
     }
 
-    public static boolean authenticateWithKDC(String username, String password, String host, int port) {
-        try (Socket socket = new Socket(host, port);
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
-             Scanner in = new Scanner(socket.getInputStream())) {
-
-            // Message 1: Send authentication claim
-            out.println("{\"type\": \"claim\", \"username\": \"" + username + "\"}");
-
-            // Message 2: Receive challenge from KDC
-            String response = in.nextLine();
-            if (response.contains("failure")) {
-                System.out.println("Authentication failed: User not found");
-                return false;
+    public static Channel authenticateWithKDC(String username, String password, String host, int port) {
+        try {
+            // Open connection manually
+            Socket socket = new Socket(host, port);
+            Channel channel = new Channel(socket);
+    
+            // Message 1: Send identity claim
+            RFC1994Claim claim = new RFC1994Claim(username);
+            channel.sendMessage(claim);
+    
+            // Message 2: Receive challenge
+            JSONObject challengeJson = channel.receiveMessage();
+            if (!challengeJson.getString("type").equals("RFC1994 Challenge")) {
+                System.out.println("Authentication failed: Unknown user or bad response");
+                channel.close(); // clean up
+                return null;
             }
-            String challenge = response.split(":")[1].replace("}", "");
-
-            // Message 3: Compute response hash (SHA-256(password + challenge))
+    
+            RFC1994Challenge challenge = new RFC1994Challenge("");
+            challenge.deserialize(challengeJson);
+            byte[] challengeBytes = Base64.getDecoder().decode(challenge.getChallenge());
+    
+            // Compute hash of password and challenge using SHA-256
+            byte[] secretBytes = (password + new String(challengeBytes)).getBytes();
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest((password + challenge).getBytes());
-
-            // Send response hash to KDC
-            out.println("{\"type\": \"response\", \"hash\": \"" + bytesToHex(hash) + "\"}");
-
-            // Message 4: Receive authentication result
-            String result = in.nextLine();
-            if (result.contains("success")) {
+            byte[] hashBytes = digest.digest(secretBytes);
+            String hashBase64 = Base64.getEncoder().encodeToString(hashBytes);
+    
+            // Message 3: Send response
+            RFC1994Response response = new RFC1994Response(hashBase64);
+            channel.sendMessage(response);
+    
+            // Message 4: Receive result
+            JSONObject resultJson = channel.receiveMessage();
+            RFC1994Result result = new RFC1994Result(false);
+            result.deserialize(resultJson);
+    
+            if (result.getResult()) {
                 System.out.println("Authentication successful");
-                return true;
+                return channel; // return open channel
             } else {
-                System.out.println("Authentication failed");
-                return false;
+                System.out.println("Authentication failed: Invalid password");
+                channel.close();
+                return null;
             }
-        } catch (IOException | java.security.NoSuchAlgorithmException e) {
+    
+        } catch (Exception e) {
+            System.err.println("Error during authentication: " + e.getMessage());
             e.printStackTrace();
-            return false;
+            return null;
         }
     }
 
@@ -180,6 +202,15 @@ public class KDCClient {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
+    }
+
+    public static String combineIVandCipher(String iv, String cipherText) {
+        byte[] ivBytes = Base64.getDecoder().decode(iv);
+        byte[] cipherBytes = Base64.getDecoder().decode(cipherText);
+        byte[] combined = new byte[ivBytes.length + cipherBytes.length];
+        System.arraycopy(ivBytes, 0, combined, 0, ivBytes.length);
+        System.arraycopy(cipherBytes, 0, combined, ivBytes.length, cipherBytes.length);
+        return Base64.getEncoder().encodeToString(combined);
     }
 
     public static void main(String[] args) {
@@ -196,10 +227,26 @@ public class KDCClient {
         kdcHost = kdcHostInfo.getFirst();
         kdcPort = kdcHostInfo.getSecond();
 
-        // 🔒 Run CHAP protocol
-        if (authenticateWithKDC(user, password, kdcHost, kdcPort)) {
-            System.out.println("Proceeding to session key request...");
-            // 🚧 TODO: Implement session key request next
+        Channel channel = authenticateWithKDC(user, password, kdcHost, kdcPort);
+        if (channel != null) {
+            try {
+                TicketRequest req = new TicketRequest(service, user);
+                channel.sendMessage(req);
+
+                JSONObject respJson = channel.receiveMessage();
+                TicketResponse resp = new TicketResponse(null, null);
+                resp.deserialize(respJson);
+
+                String combined = combineIVandCipher(resp.getTicket().getIv(), resp.getSessionKey());
+                String decryptedBase64Key = CryptoUtils.decryptAESGCM(combined, password);
+
+                System.out.println("Ticket and session key received");
+                System.out.println("Session key (base64): " + decryptedBase64Key);
+
+                channel.close();
+            } catch (Exception e) {
+                System.err.println("Error requesting session key: " + e.getMessage());
+            }
         }
     }
 }

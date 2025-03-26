@@ -1,4 +1,4 @@
-package client;
+package common;
 
 import merrimackutil.json.types.JSONType;
 import merrimackutil.json.types.JSONObject;
@@ -50,6 +50,13 @@ public class TicketRequest implements JSONSerializable, JSONType {
     }
 
    
+    public String getId() {
+        return id;
+    }
+    
+    public String getService() {
+        return service;
+    }
 
     // Main method for testing
     public static void main(String[] args) {

@@ -50,7 +50,7 @@ public class KDCServer {
         System.out.println("Starting KDC server on port " + config.port);
         try (ServerSocket serverSocket = new ServerSocket(config.port)) {
             ExecutorService executorService = Executors.newFixedThreadPool(10);
-            nonceCache = new NonceCache(16, 60);
+            nonceCache = new NonceCache(32, 60);
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("Shutting down KDC server...");
@@ -164,5 +164,7 @@ public class KDCServer {
         }
     }
     
-    
+    public static Map<String, String> getSecrets() {
+        return secrets;
+    }
 }
