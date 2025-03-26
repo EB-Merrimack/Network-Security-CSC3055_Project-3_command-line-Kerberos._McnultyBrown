@@ -1,38 +1,51 @@
 package kdcd;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.InvalidObjectException;
 import java.io.PrintWriter;
 
+import merrimackutil.json.JsonIO;
+import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
+import merrimackutil.json.types.JSONType;
 
-public class Config {
+public class Config implements JSONSerializable {
     public String secretsFile;
     public int port;
     public long validityPeriod;
 
-    // Create a default config file
-    public static String createDefaultConfig(String configFile) {
-        System.out.println("✅ Creating default config.json...");
-
-        // Create the config JSON object
-        JSONObject config = new JSONObject();
-        config.put("secrets-file", "secrets.json");
-        config.put("port", 5000);
-        config.put("validity-period", 60000); // Keep as an integer
-
-        try (PrintWriter writer = new PrintWriter(configFile)) {
-            // Write the formatted JSON to the file
-            writer.println(config.getFormattedJSON());
-            System.out.println("✅ config.json created successfully at " + configFile);
-        } catch (IOException e) {
-            System.err.println("❌ Failed to create config.json: " + e.getMessage());
-            System.exit(1); // Exit the program if creating the config fails
+    @Override
+    public void deserialize(JSONType json) throws InvalidObjectException {
+        if (!(json instanceof JSONObject)) {
+            throw new InvalidObjectException("Invalid JSON format for Config");
         }
-                return configFile;
+        JSONObject jsonObject = (JSONObject) json;
+        this.secretsFile = jsonObject.getString("secrets-file");
+        this.port = jsonObject.getInt("port");
+        this.validityPeriod = jsonObject.getLong("validity-period");
     }
 
-    public static void main(String[] args) {
-        // Example usage: Create the default config file at a given path
-        createDefaultConfig("config.json");
+    @Override
+    public JSONType toJSONType() {
+        JSONObject jsonObject = new JSONObject();
+        jsonObject.put("secrets-file", this.secretsFile);
+        jsonObject.put("port", this.port);
+        jsonObject.put("validity-period", this.validityPeriod);
+        return jsonObject;
+    }
+
+    public static String createDefaultConfig(String configFile) throws IOException {
+        Config defaultConfig = new Config();
+        defaultConfig.secretsFile = "secrets.json";
+        defaultConfig.port = 8080;
+        defaultConfig.validityPeriod = 60000;
+        
+        JSONObject jsonObject = (JSONObject) defaultConfig.toJSONType();
+        File file = new File(configFile);
+        try (PrintWriter writer = new PrintWriter(file)) {
+            writer.write(jsonObject.toString());
+        }
+        return configFile;
     }
 }

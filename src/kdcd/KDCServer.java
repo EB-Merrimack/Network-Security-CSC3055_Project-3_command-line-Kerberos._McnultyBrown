@@ -75,8 +75,7 @@ public class KDCServer {
         try {
             File file = new File(configFile);
             if (!file.exists()) {
-                System.err.println("Config file not found: " + configFile);
-                configFile = Config.createDefaultConfig(configFile);
+                System.err.println("Config file not found and must be created: " + configFile);
             }
 
             JSONObject configJson = JsonIO.readObject(new File(configFile));
