@@ -1,6 +1,5 @@
 package common;
 
-import client.TicketRequest;
 import common.Channel;
 import common.CryptoUtils;
 import common.Ticket;
@@ -76,36 +75,64 @@ public class ChapHandler {
             }
 
             // === TICKET STEP 1: Receive TicketRequest ===
-            JSONObject ticketReqJson = channel.receiveMessage();
-            TicketRequest ticketReq = new TicketRequest("", "");
+            System.out.println("📩 Receiving TicketRequest...");
+        JSONObject ticketReqJson = channel.receiveMessage();
+
+        System.out.println("📦 Deserializing TicketRequest...");
+        TicketRequest ticketReq = new TicketRequest("", "");
+        try {
             ticketReq.deserialize(ticketReqJson);
+            System.out.println("✅ Deserialized TicketRequest: user=" + ticketReq.getId() + ", service=" + ticketReq.getService());
+        } catch (Exception e) {
+            System.err.println("❌ Failed to deserialize TicketRequest: " + e.getMessage());
+            e.printStackTrace();
+            channel.close();
+            return;
+        }
 
-            // === TICKET STEP 2: Generate session key (ks) ===
-            KeyGenerator keyGen = KeyGenerator.getInstance("AES");
-            keyGen.init(256);
-            SecretKey sessionKey = keyGen.generateKey();
-            byte[] sessionKeyBytes = sessionKey.getEncoded();
-            String base64SessionKey = Base64.getEncoder().encodeToString(sessionKeyBytes);
+        System.out.println("🔐 Generating session key...");
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+        keyGen.init(256);
+        SecretKey sessionKey = keyGen.generateKey();
+        byte[] sessionKeyBytes = sessionKey.getEncoded();
+        String base64SessionKey = Base64.getEncoder().encodeToString(sessionKeyBytes);
 
-            // === TICKET STEP 3: Encrypt session key with root key ===
-            String clientPassword = secrets.get(ticketReq.getId());
-            String encryptedSessionKey = CryptoUtils.encryptAESGCM(base64SessionKey, clientPassword);
+        System.out.println("🔐 Encrypting session key with root key...");
+        String clientPassword = secrets.get(ticketReq.getId());
+        if (clientPassword == null) {
+            throw new RuntimeException("❌ No shared secret found for user: " + ticketReq.getId());
+        }
+        String encryptedSessionKey = CryptoUtils.encryptAESGCM(base64SessionKey, clientPassword);
 
-            // Split into IV and ciphertext
-            String[] parts = extractEncryptedParts(encryptedSessionKey);
-            String base64IV = parts[0];
-            String encryptedKeyOnly = parts[1];
+        System.out.println("🧬 Extracting IV and ciphertext...");
+        String[] parts = extractEncryptedParts(encryptedSessionKey);
+        String base64IV = parts[0];
+        String encryptedKeyOnly = parts[1];
 
-            // === TICKET STEP 4: Build Ticket ===
-            Ticket ticket = new Ticket(ticketReq.getId(), ticketReq.getService(), 60000L, base64IV, encryptedKeyOnly);
+        System.out.println("🎟️ Building Ticket...");
+        Ticket ticket = new Ticket(
+            ticketReq.getId(),
+            ticketReq.getService(),
+            60000L,
+            base64IV,
+            encryptedKeyOnly
+        );
 
-            // === TICKET STEP 5: Send TicketResponse ===
-            TicketResponse responseMsg = new TicketResponse(encryptedKeyOnly, ticket);
-            channel.sendMessage(responseMsg);
+        System.out.println("📤 Preparing TicketResponse...");
+        TicketResponse responseMsg = new TicketResponse(encryptedKeyOnly, ticket);
+
+        System.out.println("✅ Sending TicketResponse...");
+        System.out.println(responseMsg.toJSONType().getFormattedJSON());
+
+        channel.sendMessage(responseMsg);
+        channel.close();
 
         } catch (Exception e) {
             System.err.println("❌ Error in ChapHandler: " + e.getMessage());
-            channel.sendMessage(new RFC1994Result(false));
+            e.printStackTrace();  // <--- Add this line
+            try {
+                channel.sendMessage(new RFC1994Result(false));
+            } catch (Exception ignored) {}
             channel.close();
         }
     }

@@ -1,4 +1,4 @@
-package client;
+package common;
 
 import merrimackutil.json.types.JSONType;
 import merrimackutil.json.types.JSONObject;
