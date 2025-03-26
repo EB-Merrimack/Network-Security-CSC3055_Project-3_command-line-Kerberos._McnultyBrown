@@ -6,12 +6,20 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.Base64;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import common.Channel;
 import common.CryptoUtils;
 import common.TicketRequest;
 import common.TicketResponse;
+import common.service.ClientHello;
+import common.service.ClientResponse;
+import common.service.HandshakeResponse;
 import merrimackutil.cli.LongOption;
 import merrimackutil.cli.OptionParser;
 import merrimackutil.json.types.JSONArray;
@@ -212,6 +220,74 @@ public class KDCClient {
         System.arraycopy(cipherBytes, 0, combined, ivBytes.length, cipherBytes.length);
         return Base64.getEncoder().encodeToString(combined);
     }
+
+
+    public static void connectToService(TicketResponse response, String password) {
+    try {
+        Tuple<String, Integer> serviceHost = getHostInfo(service);
+        Socket socket = new Socket(serviceHost.getFirst(), serviceHost.getSecond());
+        Channel serviceChannel = new Channel(socket);
+
+        // Step 1: Derive session key from password
+        String combined = combineIVandCipher(response.getTicket().getIv(), response.getSessionKey());
+        String decryptedSessionKey = CryptoUtils.decryptAESGCM(combined, password);
+        byte[] sessionKeyBytes = Base64.getDecoder().decode(decryptedSessionKey);
+        SecretKeySpec ks = new SecretKeySpec(sessionKeyBytes, "AES");
+
+        // Step 2: Generate fresh nonce Nc
+        byte[] nonceClient = new byte[16];
+        new SecureRandom().nextBytes(nonceClient);
+        String base64Nc = Base64.getEncoder().encodeToString(nonceClient);
+
+        // Step 3: Send ClientHello (Ticket + Nc)
+        String ticketJson = response.getTicket().toJson(); // assuming this outputs full JSON string
+        ClientHello hello = new ClientHello(ticketJson, base64Nc);
+        serviceChannel.sendMessage(hello);
+        System.out.println("📤 Sent ClientHello");
+
+        // Step 4: Receive HandshakeResponse
+        JSONObject responseJson = serviceChannel.receiveMessage();
+        HandshakeResponse handshake = new HandshakeResponse("", "", "", "");
+        handshake.deserialize(responseJson);
+        System.out.println("📥 Received HandshakeResponse");
+
+        // Step 5: Decrypt Enc(Nc) and verify it matches original
+        String encNcCombined = combineIVandCipher(handshake.getIv(), handshake.getEncryptedNonce());
+        byte[] decrypted = CryptoUtils.decryptAESGCM(encNcCombined, ks).getBytes();
+        if (!Base64.getEncoder().encodeToString(decrypted).equals(base64Nc)) {
+            throw new SecurityException("❌ Server failed to prove knowledge of session key.");
+        }
+
+        System.out.println("✅ Verified encrypted Nc matches");
+
+        // Step 6: Generate fresh Nr and send ClientResponse
+        byte[] nonceR = new byte[16];
+        new SecureRandom().nextBytes(nonceR);
+        String base64Nr = Base64.getEncoder().encodeToString(nonceR);
+
+        byte[] nonceS = Base64.getDecoder().decode(handshake.getNonce()); // Ns
+        byte[] responseIv = new byte[12];
+        new SecureRandom().nextBytes(responseIv);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, responseIv));
+        byte[] encNs = cipher.doFinal(nonceS);
+
+        ClientResponse finalResp = new ClientResponse(
+            base64Nr,
+            user,
+            Base64.getEncoder().encodeToString(responseIv),
+            Base64.getEncoder().encodeToString(encNs)
+        );
+        serviceChannel.sendMessage(finalResp);
+        System.out.println("📤 Sent ClientResponse");
+
+        // From here, you can enter the encrypted communication phase.
+
+    } catch (Exception e) {
+        System.err.println("❌ Error during handshake with service: " + e.getMessage());
+        e.printStackTrace();
+    }
+}
 
     public static void main(String[] args) {
         processArgs(args);
