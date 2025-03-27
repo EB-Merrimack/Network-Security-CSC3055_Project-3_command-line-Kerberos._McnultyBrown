@@ -246,7 +246,7 @@ public class KDCClient {
         String base64Nc = Base64.getEncoder().encodeToString(nonceClient);
 
         // Step 3: Send ClientHello (Ticket + Nc)
-        String ticketJson = response.getTicket().toJson(); // assuming this outputs full JSON string
+        JSONObject ticketJson = (JSONObject) response.getTicket().toJSONType();
         ClientHello hello = new ClientHello(ticketJson, base64Nc);
         serviceChannel.sendMessage(hello);
         System.out.println("📤 Sent ClientHello");
@@ -319,11 +319,13 @@ public class KDCClient {
                 TicketResponse resp = new TicketResponse(null, null);
                 resp.deserialize(respJson);
 
-                String combined = combineIVandCipher(resp.getTicket().getIv(), resp.getSessionKey());
-                String decryptedBase64Key = CryptoUtils.decryptAESGCM(combined, password);
+                String encryptedSessionKey = resp.getSessionKey();
+                String base64SessionKey = CryptoUtils.decryptAESGCM(encryptedSessionKey, password);
+
+
 
                 System.out.println("Ticket and session key received");
-                System.out.println("Session key (base64): " + decryptedBase64Key);
+                System.out.println("Session key (base64): " + base64SessionKey);
 
                 connectToService(resp, password);
 

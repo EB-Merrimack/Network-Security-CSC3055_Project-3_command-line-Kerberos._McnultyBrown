@@ -1,12 +1,12 @@
 package common;
 
-import common.*;
 import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.util.NonceCache;
 import common.service.ClientHello;
 import common.service.ClientResponse;
 import common.service.HandshakeResponse;
+import echoservice.Config;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -17,10 +17,13 @@ import java.security.SecureRandom;
 public class EchoServiceHandler implements Runnable {
     private Channel channel;
     private NonceCache nonceCache;
+    private Config config;
 
-    public EchoServiceHandler(Channel channel, NonceCache nonceCache) {
+    public EchoServiceHandler(Channel channel, NonceCache nonceCache, Config config) {
         this.channel = channel;
         this.nonceCache = nonceCache;
+        this.config = config;
+
     }
 
     @Override
@@ -28,12 +31,13 @@ public class EchoServiceHandler implements Runnable {
         try {
             System.out.println("🔓 Receiving ClientHello...");
             JSONObject helloJson = channel.receiveMessage();
-            ClientHello hello = new ClientHello("", "");
+            ClientHello hello = new ClientHello(null, "");
             hello.deserialize(helloJson);
 
-            // Decode and deserialize the ticket
+            // ✅ Use the actual JSONObject from hello
+            JSONObject ticketJson = hello.getTicket(); // no more JsonIO.readObject
+
             System.out.println("🎟️ Parsing Ticket...");
-            JSONObject ticketJson = JsonIO.readObject(hello.getTicket());
             Ticket ticket = new Ticket(
                 ticketJson.getString("username"),
                 ticketJson.getString("service"),
@@ -46,9 +50,11 @@ public class EchoServiceHandler implements Runnable {
             // 🔐 Derive session key from encrypted data in ticket
             String base64Key = ticket.getEncryptedSessionKey();
             String iv = ticket.getIv();
-            String password = "servicepass"; // Your known shared password with KDC
+            String password = config.serviceSecret;            
             String combined = combineIVandCipher(iv, base64Key);
 
+            System.out.println("🔐 Decrypting session key with password: " + password);
+            System.out.println("🔐 Combined IV+Cipher: " + combined);
             String sessionKeyDecoded = CryptoUtils.decryptAESGCM(combined, password);
             byte[] sessionKeyBytes = Base64.getDecoder().decode(sessionKeyDecoded);
             SecretKeySpec ks = new SecretKeySpec(sessionKeyBytes, "AES");

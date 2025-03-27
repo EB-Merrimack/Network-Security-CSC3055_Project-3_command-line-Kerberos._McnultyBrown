@@ -8,10 +8,10 @@ import java.io.InvalidObjectException;
 
 public class ClientHello implements JSONSerializable {
     private String type = "Client Hello";
-    private String ticket;   // Serialized ticket as base64 or JSON string
+    private JSONObject ticket;
     private String nonce;    // base64 encoded
 
-    public ClientHello(String ticket, String nonce) {
+    public ClientHello(JSONObject ticket, String nonce) {
         this.ticket = ticket;
         this.nonce = nonce;
     }
@@ -32,12 +32,12 @@ public class ClientHello implements JSONSerializable {
         }
         JSONObject obj = (JSONObject) json;
         this.type = obj.getString("type");
-        this.ticket = obj.getString("ticket");
+        this.ticket = obj.getObject("ticket"); // ✅ read as object
         this.nonce = obj.getString("nonce");
     }
 
-    public String getTicket() {
-        return ticket;
+    public JSONObject getTicket() {
+        return this.ticket;
     }
 
     public String getNonce() {

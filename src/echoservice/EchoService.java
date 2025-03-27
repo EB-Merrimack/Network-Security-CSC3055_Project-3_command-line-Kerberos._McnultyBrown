@@ -79,7 +79,7 @@ public class EchoService {
                 Socket sock = server.accept();
                 System.out.println("Connection received.");
                 Channel connChannel = new Channel(sock);
-                pool.execute(new EchoServiceHandler(connChannel, nonceCache));
+                pool.execute(new EchoServiceHandler(connChannel, nonceCache, config));
             }
     
         } catch (IOException e) {

@@ -1,6 +1,12 @@
 package common;
 
-public class Ticket {
+import java.io.InvalidObjectException;
+
+import merrimackutil.json.JSONSerializable;
+import merrimackutil.json.types.JSONObject;
+import merrimackutil.json.types.JSONType;
+
+public class Ticket implements JSONSerializable{
     private long creationTime;
     private long validityTime;   // Validity time in milliseconds
     private String username;
@@ -66,13 +72,31 @@ public class Ticket {
         this.encryptedSessionKey = encryptedSessionKey;
     }
 
-    // Utility to serialize Ticket to JSON string
-    public String toJson() {
-        return "{ \"creationTime\": " + creationTime + ", " +
-               "\"validityTime\": " + validityTime + ", " +
-               "\"username\": \"" + username + "\", " +
-               "\"service\": \"" + service + "\", " +
-               "\"iv\": \"" + iv + "\", " +
-               "\"encryptedSessionKey\": \"" + encryptedSessionKey + "\" }";
+    @Override
+    public JSONType toJSONType() {
+        JSONObject json = new JSONObject();
+        json.put("creationTime", this.creationTime);
+        json.put("validityTime", this.validityTime);
+        json.put("username", this.username);
+        json.put("service", this.service);
+        json.put("iv", this.iv);
+        json.put("encryptedSessionKey", this.encryptedSessionKey);
+        return json;
+    }
+
+    @Override
+    public void deserialize(JSONType arg0) throws InvalidObjectException {
+        if (!(arg0 instanceof JSONObject)) {
+            throw new InvalidObjectException("Expected a JSONObject.");
+        }
+
+        JSONObject json = (JSONObject) arg0;
+
+        this.creationTime = json.getLong("creationTime");
+        this.validityTime = json.getLong("validityTime");
+        this.username = json.getString("username");
+        this.service = json.getString("service");
+        this.iv = json.getString("iv");
+        this.encryptedSessionKey = json.getString("encryptedSessionKey");
     }
 }
