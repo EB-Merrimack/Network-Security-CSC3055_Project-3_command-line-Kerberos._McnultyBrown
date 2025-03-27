@@ -7,6 +7,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.Scanner;
 
 import common.Channel;
 import common.CryptoUtils;
@@ -40,7 +41,7 @@ public class KDCClient {
         System.exit(1);
     }
     public static void main(String[] args) {
-        String hostsFile = null;
+        String hostsFile = "host.json";
         String user = null;
         String service = null;
 
@@ -92,13 +93,7 @@ public class KDCClient {
         }
         
         // Proceed with normal execution
-        System.out.println("Starting client with the following options:");
-        System.out.println("User: " + user);
-        System.out.println("Service: " + service);
         userauth(args, user, service, hostsFile);
-        if (hostsFile != null) {
-            System.out.println("Hosts file: " + hostsFile);
-        }
 
        
     }
@@ -113,16 +108,17 @@ public class KDCClient {
         return usrnm;
     }
 
-    public static String promptForPassword(String msg) {
-        String passwd;
-        Console cons = System.console();
+   public static String promptForPassword(String msg) {
+    String passwd;
+    Scanner scanner = new Scanner(System.in);
 
-        do {
-            passwd = new String(cons.readPassword(msg + ": "));
-        } while (passwd.isEmpty());
+    do {
+        System.out.print(msg + ": ");
+        passwd = scanner.nextLine();
+    } while (passwd.isEmpty());
 
-        return passwd;
-    }
+    return passwd;
+}
 
     public static void processArgs(String[] args) {
         OptionParser parser;
@@ -274,13 +270,24 @@ public class KDCClient {
         return Base64.getEncoder().encodeToString(combined);
     }
 
-    public static void userauth(String[] args, String user, String service, String hostsFile) {
-        processArgs(args);
+    private static void userauth(String[] args, String user, String service, String hostsFile) {
+        System.out.println("Starting user authentication...");
 
         if (user == null) {
             user = promptForUsername("Enter username");
         }
+        else
 
+        if (service == null) {
+            service = promptForUsername("Enter service");
+        }
+
+        if (hostsFile == null) {
+            hostsFile = promptForUsername("Enter hosts file");
+        }
+
+        // 🔑 Prompt for password
+        System.out.println("Prompting for password...");
         String password = promptForPassword("Enter password");
 
         // 🔐 Load KDC host info (forces hosts.json to be created if needed)
