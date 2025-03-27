@@ -57,10 +57,13 @@ public class EchoServiceHandler implements Runnable {
             System.out.println("🔐 Combined IV+Cipher: " + combined);
             String sessionKeyDecoded = CryptoUtils.decryptAESGCM(combined, password);
             byte[] sessionKeyBytes = Base64.getDecoder().decode(sessionKeyDecoded);
+            System.out.println("🔑 [SERVICE] Decrypted session key (base64): " + sessionKeyDecoded);
+            System.out.println("🔑 [SERVICE] Session key bytes: " + Base64.getEncoder().encodeToString(sessionKeyBytes));
             SecretKeySpec ks = new SecretKeySpec(sessionKeyBytes, "AES");
 
             // 🔐 Encrypt client's nonce (Nc)
             byte[] nonceClient = Base64.getDecoder().decode(hello.getNonce());
+            System.out.println("📥 [SERVICE] Received Nc from client: " + hello.getNonce());
             byte[] nonceServer = new byte[16];
             new SecureRandom().nextBytes(nonceServer);
             String base64Ns = Base64.getEncoder().encodeToString(nonceServer);
@@ -71,6 +74,8 @@ public class EchoServiceHandler implements Runnable {
             GCMParameterSpec spec = new GCMParameterSpec(128, ivBytes);
             cipher.init(Cipher.ENCRYPT_MODE, ks, spec);
             byte[] encryptedNonce = cipher.doFinal(nonceClient);
+            System.out.println("📤 [SERVICE] Encrypted Nc (enc(Nc)): " + Base64.getEncoder().encodeToString(encryptedNonce));
+            System.out.println("📤 [SERVICE] IV used: " + Base64.getEncoder().encodeToString(ivBytes));
 
             String ivOut = Base64.getEncoder().encodeToString(ivBytes);
             String encNc = Base64.getEncoder().encodeToString(encryptedNonce);

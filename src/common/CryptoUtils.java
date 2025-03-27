@@ -69,6 +69,19 @@ public class CryptoUtils {
         return new String(decryptedMessage, StandardCharsets.UTF_8);
     }
 
+    public static byte[] decryptAESGCMToBytes(String encryptedBase64, SecretKey key) throws Exception {
+        byte[] decodedMessage = Base64.getDecoder().decode(encryptedBase64);
+        byte[] iv = new byte[12];
+        System.arraycopy(decodedMessage, 0, iv, 0, iv.length);
+        byte[] cipherText = new byte[decodedMessage.length - iv.length];
+        System.arraycopy(decodedMessage, iv.length, cipherText, 0, cipherText.length);
+    
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+        cipher.init(Cipher.DECRYPT_MODE, key, spec);
+    
+        return cipher.doFinal(cipherText); // ✅ this is your original nonce
+    }
     /**
      * Derives an AES key from a password using SCRYPT.
      */

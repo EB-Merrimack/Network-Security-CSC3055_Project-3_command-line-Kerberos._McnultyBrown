@@ -93,6 +93,8 @@ public class ChapHandler {
             SecretKey sessionKey = keyGen.generateKey();
             byte[] sessionKeyBytes = sessionKey.getEncoded();
             String base64SessionKey = Base64.getEncoder().encodeToString(sessionKeyBytes);
+            System.out.println("🔑 [KDC] Session Key (base64): " + base64SessionKey);
+
 
             // 🔐 Encrypt session key with CLIENT's password
             String clientPassword = secrets.get(ticketReq.getId());

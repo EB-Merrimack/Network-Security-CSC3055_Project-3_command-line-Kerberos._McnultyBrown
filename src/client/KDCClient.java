@@ -236,6 +236,7 @@ public class KDCClient {
 
         // Step 1: Derive session key from password
         byte[] sessionKeyBytes = Base64.getDecoder().decode(base64SessionKey);
+        System.out.println("🔑 [CLIENT] Using session key bytes: " + Base64.getEncoder().encodeToString(sessionKeyBytes));
         SecretKeySpec ks = new SecretKeySpec(sessionKeyBytes, "AES");
 
         // Step 2: Generate fresh nonce Nc
@@ -257,7 +258,9 @@ public class KDCClient {
 
         // Step 5: Decrypt Enc(Nc) and verify it matches original
         String encNcCombined = combineIVandCipher(handshake.getIv(), handshake.getEncryptedNonce());
-        byte[] decrypted = CryptoUtils.decryptAESGCM(encNcCombined, ks).getBytes();
+        byte[] decrypted = CryptoUtils.decryptAESGCMToBytes(encNcCombined, ks);
+        System.out.println("🧾 [CLIENT] Original Nc: " + base64Nc);
+        System.out.println("🔓 [CLIENT] Decrypted enc(Nc): " + Base64.getEncoder().encodeToString(decrypted));
         if (!Base64.getEncoder().encodeToString(decrypted).equals(base64Nc)) {
             throw new SecurityException("❌ Server failed to prove knowledge of session key.");
         }
@@ -319,6 +322,7 @@ public class KDCClient {
 
                 String encryptedSessionKey = resp.getSessionKey();
                 String base64SessionKey = CryptoUtils.decryptAESGCM(encryptedSessionKey, password);
+                System.out.println("🔑 [CLIENT] Decrypted Session Key (base64): " + base64SessionKey);
 
 
 
