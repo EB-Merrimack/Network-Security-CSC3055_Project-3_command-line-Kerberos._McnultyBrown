@@ -24,6 +24,7 @@ import common.service.ClientResponse;
 import common.service.HandshakeResponse;
 import merrimackutil.cli.LongOption;
 import merrimackutil.cli.OptionParser;
+import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONArray;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.net.hostdb.HostsDatabase;
@@ -39,14 +40,14 @@ public class KDCClient {
     private static String kdcHost;
     private static int kdcPort;
 
-    public static void usageClient() {
-        System.out.println("usage: ");
-        System.out.println("    client --hosts <hostfile> --user <user> --service <service>");
-        System.out.println("    client --user <user> --service <service>");
-        System.out.println("options: ");
-        System.out.println("    -h, --hosts Set the hosts file.");
-        System.out.println("    -u, --user The user name.");
-        System.out.println("    -s, --service The name of the service.");
+   public static void usageClient(Channel channel) {
+        // Create an instance of the UsageMessage class
+        UsageMessage usageMessage = new UsageMessage();
+    
+        // Send the serialized JSON object over the channel using JsonIO.writeSerializedObject
+        JsonIO.writeSerializedObject(usageMessage, channel.getWriter());  // Ensure you're passing PrintWriter
+    
+        // Exit the program
         System.exit(1);
     }
 
