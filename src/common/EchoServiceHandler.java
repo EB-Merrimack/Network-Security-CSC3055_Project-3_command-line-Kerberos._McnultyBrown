@@ -12,6 +12,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 
 public class EchoServiceHandler implements Runnable {
@@ -107,6 +108,77 @@ public class EchoServiceHandler implements Runnable {
 
             System.out.println("✅ Client handshake verified!");
             System.out.println("🤝 Session established with user: " + clientResp.getClientId());
+
+            while (true) {
+                try {
+                    // Step 1: Receive encrypted message from client
+                    JSONObject incomingMsg = channel.receiveMessage();
+                    String ivBase64 = incomingMsg.getString("iv");
+                    String cipherBase64 = incomingMsg.getString("message");
+
+                    byte[] msgIv = Base64.getDecoder().decode(ivBase64);
+                    byte[] ciphertext = Base64.getDecoder().decode(cipherBase64);
+
+                    // Step 2: Decrypt with session key
+                    Cipher decryptMsgCipher = Cipher.getInstance("AES/GCM/NoPadding");
+                    GCMParameterSpec decryptSpec = new GCMParameterSpec(128, msgIv);
+                    decryptCipher.init(Cipher.DECRYPT_MODE, ks, decryptSpec);
+                    byte[] plainBytes = decryptMsgCipher.doFinal(ciphertext);
+                    String decryptedStr = new String(plainBytes, StandardCharsets.UTF_8);
+
+                    // Step 3: Parse decrypted JSON message
+                    JSONObject payload = JsonIO.readObject(decryptedStr);
+                    String receivedNonce = payload.getString("nonce");
+                    String sender = payload.getString("user");
+                    String targetService = payload.getString("service");
+                    String message = payload.getString("message");
+
+
+                    if (!targetService.equals(config.serviceName)) {
+                        System.err.println("❌ [SERVICE] Message intended for service '" + targetService + "', but this is '" + config.serviceName + "'");
+                        channel.close();
+                        break;
+                    }
+                    
+                    // Step 4: Validate nonce
+                    byte[] nonceBytes = Base64.getDecoder().decode(receivedNonce);
+
+                    if (nonceCache.containsNonce(nonceBytes)) {
+                        System.err.println("⚠️ [SERVICE] Replay detected: nonce reused!");
+                        channel.close();
+                        break;
+                    }
+
+                    // ✅ Add nonce to cache
+                    nonceCache.addNonce(nonceBytes);
+
+                    System.out.println("📥 [SERVICE] Received from " + sender + ": " + message);
+
+                    // Step 5: Process message
+                    String responseText = message.toUpperCase();
+
+                    // Step 6: Encrypt response
+                    byte[] responseIv = new byte[12];
+                    new SecureRandom().nextBytes(responseIv);
+                    Cipher encryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+                    encryptCipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, responseIv));
+                    byte[] encryptedResponse = encryptCipher.doFinal(responseText.getBytes(StandardCharsets.UTF_8));
+
+                    // Step 7: Send encrypted response
+                    JSONObject responseJson = new JSONObject();
+                    responseJson.put("iv", Base64.getEncoder().encodeToString(responseIv));
+                    responseJson.put("message", Base64.getEncoder().encodeToString(encryptedResponse));
+                    channel.sendMessage(responseJson);
+
+                    System.out.println("📤 [SERVICE] Responded with: " + responseText);
+
+                } catch (Exception e) {
+                    System.err.println("❌ [SERVICE] Error in communication loop: " + e.getMessage());
+                    e.printStackTrace();
+                    channel.close();
+                    break;
+                }
+            }
 
         } catch (Exception e) {
             System.err.println("❌ Error in EchoServiceHandler: " + e.getMessage());

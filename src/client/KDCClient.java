@@ -5,9 +5,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Scanner;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -288,7 +290,54 @@ public class KDCClient {
         serviceChannel.sendMessage(finalResp);
         System.out.println("📤 Sent ClientResponse");
 
-        // From here, you can enter the encrypted communication phase.
+        // ✅ Step 7: Encrypted message exchange
+        try {
+            // Prompt user for message
+            System.out.print("Message to send: ");
+            Scanner sc = new Scanner(System.in);
+            String input = sc.nextLine();
+
+            // Construct message JSON with nonce, user, service, and message
+            byte[] msgIv = new byte[12];
+            new SecureRandom().nextBytes(msgIv);
+            byte[] msgNonce = new byte[16];
+            new SecureRandom().nextBytes(msgNonce);
+            String base64Nonce = Base64.getEncoder().encodeToString(msgNonce);
+
+            JSONObject payload = new JSONObject();
+            payload.put("nonce", base64Nonce);
+            payload.put("user", user);
+            payload.put("service", service);
+            payload.put("message", input);
+
+            String payloadStr = payload.getFormattedJSON(); // or toString()
+            Cipher encryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+            encryptCipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, msgIv));
+            byte[] encryptedMessage = encryptCipher.doFinal(payloadStr.getBytes(StandardCharsets.UTF_8));
+
+            // Wrap in outer JSON
+            JSONObject msgObj = new JSONObject();
+            msgObj.put("iv", Base64.getEncoder().encodeToString(msgIv));
+            msgObj.put("message", Base64.getEncoder().encodeToString(encryptedMessage));
+            serviceChannel.sendMessage(msgObj);
+
+            // Receive encrypted response
+            JSONObject respJson = serviceChannel.receiveMessage();
+            byte[] respIv = Base64.getDecoder().decode(respJson.getString("iv"));
+            byte[] respCipher = Base64.getDecoder().decode(respJson.getString("message"));
+
+            Cipher decryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+            decryptCipher.init(Cipher.DECRYPT_MODE, ks, new GCMParameterSpec(128, respIv));
+            byte[] decryptedResponse = decryptCipher.doFinal(respCipher);
+
+            // Print response
+            String responseText = new String(decryptedResponse, StandardCharsets.UTF_8);
+            System.out.println(responseText);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error during encrypted message exchange: " + e.getMessage());
+            e.printStackTrace();
+        }
 
     } catch (Exception e) {
         System.err.println("❌ Error during handshake with service: " + e.getMessage());
