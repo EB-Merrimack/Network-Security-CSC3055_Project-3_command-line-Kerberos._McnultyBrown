@@ -228,16 +228,14 @@ public class KDCClient {
     }
 
 
-    public static void connectToService(TicketResponse response, String password) {
+    public static void connectToService(TicketResponse response, String base64SessionKey) {
     try {
         Tuple<String, Integer> serviceHost = getHostInfo(service);
         Socket socket = new Socket(serviceHost.getFirst(), serviceHost.getSecond());
         Channel serviceChannel = new Channel(socket);
 
         // Step 1: Derive session key from password
-        String combined = combineIVandCipher(response.getTicket().getIv(), response.getSessionKey());
-        String decryptedSessionKey = CryptoUtils.decryptAESGCM(combined, password);
-        byte[] sessionKeyBytes = Base64.getDecoder().decode(decryptedSessionKey);
+        byte[] sessionKeyBytes = Base64.getDecoder().decode(base64SessionKey);
         SecretKeySpec ks = new SecretKeySpec(sessionKeyBytes, "AES");
 
         // Step 2: Generate fresh nonce Nc
@@ -327,7 +325,7 @@ public class KDCClient {
                 System.out.println("Ticket and session key received");
                 System.out.println("Session key (base64): " + base64SessionKey);
 
-                connectToService(resp, password);
+                connectToService(resp, base64SessionKey);
 
                 channel.close();
             } catch (Exception e) {
