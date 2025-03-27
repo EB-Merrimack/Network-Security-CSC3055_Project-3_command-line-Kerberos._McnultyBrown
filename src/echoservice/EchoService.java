@@ -13,6 +13,8 @@ import common.Channel;
 import common.ConnectionHandler;
 import merrimackutil.util.NonceCache;
 
+import java.util.Base64;
+
 public class EchoService {
 
     private static String configFile = null; // Config file must be explicitly set
@@ -34,7 +36,7 @@ public class EchoService {
     public static void main(String[] args) {
         // If no arguments are provided, or if "echoservice" is provided, start the default EchoService
         if (args.length == 0 || args[0].equalsIgnoreCase("echoservice")) {
-            startServer("config.json");
+            startServer("src/echoservice/config.json");
             return;
         }
 
@@ -85,27 +87,27 @@ public class EchoService {
         }
 
         // Create a new thread to run the EchoService so it doesn't block the command line
-        Thread serverThread = new Thread(() -> {
-            ExecutorService pool = Executors.newFixedThreadPool(10);
+        ExecutorService pool = Executors.newFixedThreadPool(10);  // Use a thread pool with 10 threads
 
-            try (ServerSocket server = new ServerSocket(config.port)) {  // Use port from config
-                System.out.println("EchoService started on port " + config.port);
-                while (true) {
-                    Socket sock = server.accept();
-                    System.out.println("Connection received.");
-                    // Pass the nonce cache to the connection handler
-                    pool.execute(new ConnectionHandler(channel, nonceCache));
-                }
-            } catch (IOException ioe) {
-                ioe.printStackTrace();
-            }
-        });
+        try (ServerSocket server = new ServerSocket(config.port)) {  // Use port from config
+            System.out.println("EchoService started on port " + config.port);
 
-        // Start the server in a background thread
-        serverThread.setDaemon(true);  // Set the thread as daemon so it doesn't block program termination
-        serverThread.start();
-        
-        System.out.println("EchoService is now running in the background. You can return to the command line.");
+            while (true) {
+                Socket sock = server.accept();
+                System.out.println("Connection received.");
+
+             // Create a new Channel instance for each accepted connection
+             Channel channel = new Channel(sock); // Initialize the Channel with the client socket
+
+             // Pass the nonce cache and channel to the EchoConnection
+             pool.execute(new common.EchoConnection(channel, nonceCache));  // Pass the new channel to EchoConnection
+         }
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        } finally {
+            // Shutdown the thread pool when done
+            pool.shutdown();
+        }
     }
 
     /**
@@ -141,16 +143,6 @@ public class EchoService {
     }
 
     /**
-     * Load secrets from the secrets file (stub method to implement loading secrets).
-     * 
-     * @param secretsFile Path to the secrets file.
-     */
-    private static void loadSecrets(String secretsFile) {
-        // Implement your secret loading logic here, possibly deserializing secrets from a file
-        System.out.println("Loading secrets from: " + secretsFile);
-    }
-
-    /**
      * Utility method to send messages to the channel (for example, the console).
      * 
      * @param channel The channel to send the message to.
@@ -159,5 +151,10 @@ public class EchoService {
     private static void sendMessageToChannel(Channel channel, String message) {
         // Send message to the channel (this is a placeholder for actual implementation)
         System.out.println(message);  // Just print to the console for now
+    }
+
+    // Add method to decode Base64
+    private static byte[] decodeBase64(String base64String) {
+        return Base64.getDecoder().decode(base64String);
     }
 }

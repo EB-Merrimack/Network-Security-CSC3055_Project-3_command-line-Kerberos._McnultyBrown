@@ -8,7 +8,7 @@ import kdcd.KDCServer;
 import merrimackutil.util.NonceCache;
 import merrimackutil.json.types.JSONObject;
 
-public class ConnectionHandler implements Runnable
+public class EchoConnection implements Runnable
 {
     private Channel channel;
     private NonceCache nonceCache;  // NonceCache to check for replay attacks
@@ -18,7 +18,7 @@ public class ConnectionHandler implements Runnable
      * @param channel the channel associated with the connection.
      * @param nonceCache the nonce cache to check for replay attacks.
      */
-    public ConnectionHandler(Channel channel, NonceCache nonceCache)
+    public EchoConnection(Channel channel, NonceCache nonceCache)
     {
         this.channel = channel;
         this.nonceCache = nonceCache;  // Initialize with the nonce cache
@@ -33,13 +33,6 @@ public class ConnectionHandler implements Runnable
     {
         try
         {
-
-             ChapHandler chap = new ChapHandler(channel, nonceCache, KDCServer.getSecrets());
-            chap.run(); // Run CHAP protocol
-
-            // ✅ If CHAP succeeded, proceed to handle TicketRequest...
-            // This would be your next step in the protocol (we can do this next)
-        
 
 
             // Receive the nonce from the client (as part of the message)
