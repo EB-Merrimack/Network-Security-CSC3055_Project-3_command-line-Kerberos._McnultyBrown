@@ -11,7 +11,6 @@ import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
 import common.Channel;
 import common.ConnectionHandler;
-import common.EchoConnection;
 import merrimackutil.util.NonceCache;
 
 import java.util.Base64;
@@ -99,7 +98,7 @@ public class EchoService {
 
                 // Pass the nonce cache and channel to the connection handler
                 // The ExecutorService will handle client connections in a thread pool
-                pool.execute(new EchoConnection(sock, nonceCache));
+                pool.execute(new common.ConnectionHandler(channel, nonceCache));
             }
         } catch (IOException ioe) {
             ioe.printStackTrace();
