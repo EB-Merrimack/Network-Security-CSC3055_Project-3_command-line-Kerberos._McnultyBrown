@@ -24,6 +24,7 @@ import common.service.ClientResponse;
 import common.service.HandshakeResponse;
 import merrimackutil.cli.LongOption;
 import merrimackutil.cli.OptionParser;
+import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONArray;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.net.hostdb.HostsDatabase;
@@ -50,6 +51,7 @@ public class KDCClient {
         System.exit(1);
     }
 
+    
     public static void main(String[] args) {
         String hostsFile = "host.json";
         String user = null;
@@ -348,8 +350,7 @@ public class KDCClient {
     }
 }
 
-    public static void main(String[] args) {
-        processArgs(args);
+    public static void  userauth(String[] args, String user, String service, String hostsFile){
 
         if (user == null) {
             user = promptForUsername("Enter username");
