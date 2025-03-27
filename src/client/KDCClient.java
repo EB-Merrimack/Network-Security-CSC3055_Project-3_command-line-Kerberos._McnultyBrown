@@ -30,6 +30,7 @@ public class KDCClient {
     private static String service = null;
     private static String kdcHost;
     private static int kdcPort;
+
     public static void usageClient(Channel channel) {
         // Create an instance of the UsageMessage class
         UsageMessage usageMessage = new UsageMessage();
@@ -40,6 +41,7 @@ public class KDCClient {
         // Exit the program
         System.exit(1);
     }
+
     public static void main(String[] args) {
         String hostsFile = "host.json";
         String user = null;
@@ -84,19 +86,18 @@ public class KDCClient {
                 return; // Exit on invalid argument
             }
         }
-        
+
         // Ensure that both --user and --service are provided
         if (user == null || service == null) {
             System.err.println("Error: Both --user and --service must be specified.");
             System.out.println(usageMessage.getUsageMessage());
             return;
         }
-        
+
         // Proceed with normal execution
         userauth(args, user, service, hostsFile);
-
-       
     }
+
     public static String promptForUsername(String msg) {
         String usrnm;
         Console cons = System.console();
@@ -108,52 +109,23 @@ public class KDCClient {
         return usrnm;
     }
 
-   public static String promptForPassword(String msg) {
-    String passwd;
-    Scanner scanner = new Scanner(System.in);
-
-    do {
-        System.out.print(msg + ": ");
-        passwd = scanner.nextLine();
-    } while (passwd.isEmpty());
-
-    return passwd;
-}
-
-    public static void processArgs(String[] args) {
-        OptionParser parser;
-
-        LongOption[] opts = new LongOption[3];
-        opts[0] = new LongOption("hosts", false, 'h');
-        opts[1] = new LongOption("user", true, 'u');
-        opts[2] = new LongOption("service", true, 's');
-
-        Tuple<Character, String> currOpt;
-
-        parser = new OptionParser(args);
-        parser.setLongOpts(opts);
-        parser.setOptString("hu:s");
-
-        while (parser.getOptIdx() != args.length) {
-            currOpt = parser.getLongOpt(false);
-
-            switch (currOpt.getFirst()) {
-                case 'h':
-                    break;
-                case 'u':
-                    user = currOpt.getSecond();
-                    break;
-                case 's':
-                    service = currOpt.getSecond();
-                    break;
-            }
-        }
+    public static String promptForPassword(String msg) {
+        Console cons = System.console();
+        char[] passwdArray = null;
+    
+        do {
+            System.out.print(msg + ": ");
+            passwdArray = cons.readPassword(); // This hides the password input with dots
+        } while (passwdArray == null || passwdArray.length == 0); // Ensure non-empty password
+    
+        return new String(passwdArray); // Convert char array to String
     }
+    
 
     public static Tuple<String, Integer> getHostInfo(String hostName) {
         File file = new File("hosts.json");
 
-        //If file doesn't exist, create a default one
+        // If file doesn't exist, create a default one
         if (!file.exists()) {
             try {
                 System.out.println("Creating default hosts.json...");
@@ -180,7 +152,7 @@ public class KDCClient {
             }
         }
 
-        //Load host info
+        // Load host info
         try {
             HostsDatabase db = new HostsDatabase(file);
 
@@ -205,11 +177,11 @@ public class KDCClient {
             // Open connection manually
             Socket socket = new Socket(host, port);
             Channel channel = new Channel(socket);
-    
+
             // Message 1: Send identity claim
             RFC1994Claim claim = new RFC1994Claim(username);
             channel.sendMessage(claim);
-    
+
             // Message 2: Receive challenge
             JSONObject challengeJson = channel.receiveMessage();
             if (!challengeJson.getString("type").equals("RFC1994 Challenge")) {
@@ -217,35 +189,36 @@ public class KDCClient {
                 channel.close(); // clean up
                 return null;
             }
-    
+
             RFC1994Challenge challenge = new RFC1994Challenge("");
             challenge.deserialize(challengeJson);
             byte[] challengeBytes = Base64.getDecoder().decode(challenge.getChallenge());
-    
+
             // Compute hash of password and challenge using SHA-256
             byte[] secretBytes = (password + new String(challengeBytes)).getBytes();
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest(secretBytes);
             String hashBase64 = Base64.getEncoder().encodeToString(hashBytes);
-    
+
             // Message 3: Send response
             RFC1994Response response = new RFC1994Response(hashBase64);
             channel.sendMessage(response);
-    
+
             // Message 4: Receive result
             JSONObject resultJson = channel.receiveMessage();
             RFC1994Result result = new RFC1994Result(false);
             result.deserialize(resultJson);
-    
+
             if (result.getResult()) {
                 System.out.println("Authentication successful");
+                startEchoClient();
                 return channel; // return open channel
             } else {
                 System.out.println("Authentication failed: Invalid password");
                 channel.close();
                 return null;
             }
-    
+
         } catch (Exception e) {
             System.err.println("Error during authentication: " + e.getMessage());
             e.printStackTrace();
@@ -271,14 +244,9 @@ public class KDCClient {
     }
 
     private static void userauth(String[] args, String user, String service, String hostsFile) {
-        System.out.println("Starting user authentication...");
-
         if (user == null) {
             user = promptForUsername("Enter username");
-        }
-        else
-
-        if (service == null) {
+        } else if (service == null) {
             service = promptForUsername("Enter service");
         }
 
@@ -298,9 +266,8 @@ public class KDCClient {
         Channel channel = authenticateWithKDC(user, password, kdcHost, kdcPort);
         if (channel != null) {
             try {
-                TicketRequest req = new TicketRequest(service, user);
-                channel.sendMessage(req);
-
+                // 🔑 Request a ticket from KDC
+                new TicketRequest(service, user);
                 JSONObject respJson = channel.receiveMessage();
                 TicketResponse resp = new TicketResponse(null, null);
                 resp.deserialize(respJson);
@@ -311,10 +278,21 @@ public class KDCClient {
                 System.out.println("Ticket and session key received");
                 System.out.println("Session key (base64): " + decryptedBase64Key);
 
+                // If service is echoService, start EchoClient
+                if (service.equalsIgnoreCase("echoService")) {
+                    startEchoClient();
+                } else {
+                    System.out.println("Service is not known.");
+                }
+
                 channel.close();
             } catch (Exception e) {
                 System.err.println("Error requesting session key: " + e.getMessage());
             }
         }
+    }
+
+    private static void startEchoClient() {
+        EchoClient.main(new String[]{}); // Start the EchoClient
     }
 }

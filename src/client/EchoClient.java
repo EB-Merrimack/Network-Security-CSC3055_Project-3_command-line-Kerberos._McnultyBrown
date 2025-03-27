@@ -1,41 +1,29 @@
 package client;
 
-
-/*
- *   Copyright (C) 2022 -- 2023  Zachary A. Kissel
- *
- *   This program is free software: you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation, either version 3 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License
- *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
+import java.io.IOException;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Scanner;
 import java.io.PrintWriter;
-import java.io.IOException;
+import java.util.Base64;
+import java.security.SecureRandom;
+import merrimackutil.json.types.JSONObject;
 
+/**
+ * Client to send a message with a nonce to the server.
+ */
 public class EchoClient {
   public static void main (String[] args)
   {
     Scanner scan = new Scanner(System.in);
-    Socket sock;
+    Socket sock = null;
     Scanner recv = null;
     PrintWriter send = null;
 
     try
     {
       // Set up a connection to the echo server running on the same machine.
-      sock = new Socket("127.0.0.1", 5000);
-
+      sock = new Socket("127.0.0.1", 5001);
 
       // Set up the streams for the socket.
       recv = new Scanner(sock.getInputStream());
@@ -51,15 +39,45 @@ public class EchoClient {
       ioe.printStackTrace();
     }
 
-    // Prompt the user for a string to send.
+    // Generate a nonce for this request
+    byte[] nonce = generateNonce();
+
+    // Prompt the user for a string to send
     System.out.print("Write a short message: ");
     String msg = scan.nextLine();
 
-    // Send the message to the server.
-    send.println(msg);
+    // Create JSON object with the nonce and message
+    JSONObject message = new JSONObject();
+    message.put("nonce", encodeBase64(nonce));  // Encode the nonce as Base64
+    message.put("data", msg);  // The message to send
 
-    // Echo the response to the screen.
+    // Send the JSON object to the server
+    send.println(message.toString());
+
+    // Receive the response from the server
     String recvMsg = recv.nextLine();
     System.out.println("Server Said: " + recvMsg);
+  }
+
+  /**
+   * Generates a random nonce.
+   * @return a byte array representing the nonce.
+   */
+  private static byte[] generateNonce()
+  {
+    SecureRandom random = new SecureRandom();
+    byte[] nonce = new byte[16];  // Nonce size (16 bytes)
+    random.nextBytes(nonce);  // Fill with random bytes
+    return nonce;
+  }
+
+  /**
+   * Encodes a byte array to Base64.
+   * @param data the byte array to encode.
+   * @return the Base64 encoded string.
+   */
+  private static String encodeBase64(byte[] data)
+  {
+    return Base64.getEncoder().encodeToString(data);
   }
 }

@@ -11,6 +11,7 @@ import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
 import common.Channel;
 import common.ConnectionHandler;
+import common.EchoConnection;
 import merrimackutil.util.NonceCache;
 
 public class EchoService {
@@ -85,27 +86,25 @@ public class EchoService {
         }
 
         // Create a new thread to run the EchoService so it doesn't block the command line
-        Thread serverThread = new Thread(() -> {
-            ExecutorService pool = Executors.newFixedThreadPool(10);
+        ExecutorService pool = Executors.newFixedThreadPool(10);  // Use a thread pool with 10 threads
 
-            try (ServerSocket server = new ServerSocket(config.port)) {  // Use port from config
-                System.out.println("EchoService started on port " + config.port);
-                while (true) {
-                    Socket sock = server.accept();
-                    System.out.println("Connection received.");
-                    // Pass the nonce cache to the connection handler
-                    pool.execute(new ConnectionHandler(channel, nonceCache));
-                }
-            } catch (IOException ioe) {
-                ioe.printStackTrace();
+        try (ServerSocket server = new ServerSocket(config.port)) {  // Use port from config
+            System.out.println("EchoService started on port " + config.port);
+
+            while (true) {
+                Socket sock = server.accept();
+                System.out.println("Connection received.");
+
+                // Pass the nonce cache and channel to the connection handler
+                // The ExecutorService will handle client connections in a thread pool
+                pool.execute(new EchoConnection(sock, nonceCache));
             }
-        });
-
-        // Start the server in a background thread
-        serverThread.setDaemon(true);  // Set the thread as daemon so it doesn't block program termination
-        serverThread.start();
-        
-        System.out.println("EchoService is now running in the background. You can return to the command line.");
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        } finally {
+            // Shutdown the thread pool when done
+            pool.shutdown();
+        }
     }
 
     /**
@@ -138,16 +137,6 @@ public class EchoService {
             e.printStackTrace();
             throw new IOException("Error loading configuration: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * Load secrets from the secrets file (stub method to implement loading secrets).
-     * 
-     * @param secretsFile Path to the secrets file.
-     */
-    private static void loadSecrets(String secretsFile) {
-        // Implement your secret loading logic here, possibly deserializing secrets from a file
-        System.out.println("Loading secrets from: " + secretsFile);
     }
 
     /**
