@@ -34,7 +34,7 @@ public class EchoService {
     public static void main(String[] args) {
         // If no arguments are provided, or if "echoservice" is provided, start the default EchoService
         if (args.length == 0 || args[0].equalsIgnoreCase("echoservice")) {
-            startServer("config.json");
+            startServer("src/echoservice/config.json");
             return;
         }
 
