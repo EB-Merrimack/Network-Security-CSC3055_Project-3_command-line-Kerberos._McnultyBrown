@@ -93,20 +93,29 @@ public class ChapHandler {
             SecretKey sessionKey = keyGen.generateKey();
             byte[] sessionKeyBytes = sessionKey.getEncoded();
             String base64SessionKey = Base64.getEncoder().encodeToString(sessionKeyBytes);
+            System.out.println("🔑 [KDC] Session Key (base64): " + base64SessionKey);
 
-            System.out.println("Encrypting session key with root key...");
+
+            // 🔐 Encrypt session key with CLIENT's password
             String clientPassword = secrets.get(ticketReq.getId());
             if (clientPassword == null) {
                 throw new RuntimeException("No shared secret found for user: " + ticketReq.getId());
             }
-            String encryptedSessionKey = CryptoUtils.encryptAESGCM(base64SessionKey, clientPassword);
+            String encryptedForClient = CryptoUtils.encryptAESGCM(base64SessionKey, clientPassword);
 
-            System.out.println("Extracting IV and ciphertext...");
-            String[] parts = extractEncryptedParts(encryptedSessionKey);
+            // 🔐 Encrypt session key with SERVICE's password
+            String servicePassword = secrets.get(ticketReq.getService());
+            if (servicePassword == null) {
+                throw new RuntimeException("No shared secret found for service: " + ticketReq.getService());
+            }
+            String encryptedForService = CryptoUtils.encryptAESGCM(base64SessionKey, servicePassword);
+
+            // 📦 Extract IV + ciphertext for ticket
+            String[] parts = extractEncryptedParts(encryptedForService);
             String base64IV = parts[0];
             String encryptedKeyOnly = parts[1];
 
-            System.out.println("Building Ticket...");
+            // 🎟️ Build ticket with service-encrypted session key
             Ticket ticket = new Ticket(
                 ticketReq.getId(),
                 ticketReq.getService(),
@@ -115,8 +124,8 @@ public class ChapHandler {
                 encryptedKeyOnly
             );
 
-            System.out.println("Preparing TicketResponse...");
-            TicketResponse responseMsg = new TicketResponse(encryptedKeyOnly, ticket);
+            // 📬 TicketResponse contains client-encrypted key and full ticket
+            TicketResponse responseMsg = new TicketResponse(encryptedForClient, ticket);
 
             System.out.println("Sending TicketResponse...");
             System.out.println(responseMsg.toJSONType().getFormattedJSON());

@@ -1,4 +1,4 @@
-package kdcd;
+/*package kdcd;
 
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
@@ -55,4 +55,4 @@ public class HandshakeProcessor implements JSONSerializable {
 
         return new HandshakeProcessor(serviceName, encryptedResponse, nonce, iv);
     }
-}
+}*/

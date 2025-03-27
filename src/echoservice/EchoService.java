@@ -11,13 +11,14 @@ import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
 import common.Channel;
 import common.ConnectionHandler;
+import common.EchoServiceHandler;
 import merrimackutil.util.NonceCache;
 
 import java.util.Base64;
 
 public class EchoService {
 
-    private static String configFile = null; // Config file must be explicitly set
+    private static final String DEFAULT_CONFIG_FILE = "src/echoservice/config.json";
     private static NonceCache nonceCache; // NonceCache instance to prevent replay attacks
     private static Channel channel; // Channel instance for sending messages
     private static Config config; // Config object to store configuration details
@@ -34,37 +35,23 @@ public class EchoService {
     }
 
     public static void main(String[] args) {
-        // If no arguments are provided, or if "echoservice" is provided, start the default EchoService
-        if (args.length == 0 || args[0].equalsIgnoreCase("echoservice")) {
-            startServer("src/echoservice/config.json");
+        String configFile = DEFAULT_CONFIG_FILE;
+
+        if (args.length == 0) {
+            // No args? Use default config
+            System.out.println("🛠 Using default config file: " + configFile);
+        } else if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
+            configFile = args[1];
+        } else if (args.length == 1 && (args[0].equals("-h") || args[0].equals("--help"))) {
+            usageClient(channel);
+            return;
+        } else {
+            System.err.println("Error: Unrecognized arguments.");
+            usageClient(channel);
             return;
         }
 
-        // Handle command-line arguments
-        for (int i = 0; i < args.length; i++) {
-            switch (args[i]) {
-                case "-h":
-                case "--help":
-                    usageClient(channel);
-                    return;
-                case "-c":
-                case "--config":
-                    if (i + 1 < args.length && !args[i + 1].startsWith("-")) {
-                        configFile = args[i + 1];
-                        i++; // Skip the next argument (config file name)
-                    } else {
-                        throw new IllegalArgumentException("Error: Missing <configfile> after -c/--config.");
-                    }
-                    break;
-                default:
-                    if (args[i].equalsIgnoreCase("echoservice")) {
-                        continue;
-                    }
-                    throw new IllegalArgumentException("Error: Unrecognized option: " + args[i]);
-            }
-        }
-
-        // Start the EchoService server
+        // Start server
         startServer(configFile);
     }
 
@@ -73,40 +60,32 @@ public class EchoService {
      */
     private static void startServer(String configFile) {
         if (configFile == null) {
-            throw new IllegalArgumentException("No configuration file provided. Running EchoService with default settings...");
-        } else {
-            System.out.println("Using configuration file: " + configFile);
+            configFile = DEFAULT_CONFIG_FILE;
         }
-
-        // Load the configuration from the JSON file
+    
+        System.out.println("Using configuration file: " + configFile);
+    
         try {
             loadConfig(configFile);
         } catch (IOException e) {
             System.err.println("Error loading configuration: " + e.getMessage());
             return;
         }
-
-        // Create a new thread to run the EchoService so it doesn't block the command line
-        ExecutorService pool = Executors.newFixedThreadPool(10);  // Use a thread pool with 10 threads
-
-        try (ServerSocket server = new ServerSocket(config.port)) {  // Use port from config
+    
+        // ✅ Start server immediately (NO background thread for now)
+        try (ServerSocket server = new ServerSocket(config.port)) {
             System.out.println("EchoService started on port " + config.port);
-
+            ExecutorService pool = Executors.newFixedThreadPool(10);
+    
             while (true) {
                 Socket sock = server.accept();
                 System.out.println("Connection received.");
-
-             // Create a new Channel instance for each accepted connection
-             Channel channel = new Channel(sock); // Initialize the Channel with the client socket
-
-             // Pass the nonce cache and channel to the EchoConnection
-             pool.execute(new common.EchoConnection(channel, nonceCache));  // Pass the new channel to EchoConnection
-         }
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-        } finally {
-            // Shutdown the thread pool when done
-            pool.shutdown();
+                Channel connChannel = new Channel(sock);
+                pool.execute(new EchoServiceHandler(connChannel, nonceCache, config));
+            }
+    
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 

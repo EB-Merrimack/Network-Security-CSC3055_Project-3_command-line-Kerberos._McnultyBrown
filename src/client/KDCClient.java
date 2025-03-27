@@ -5,14 +5,23 @@ import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Scanner;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 import common.Channel;
 import common.CryptoUtils;
 import common.TicketRequest;
 import common.TicketResponse;
+import common.service.ClientHello;
+import common.service.ClientResponse;
+import common.service.HandshakeResponse;
 import merrimackutil.cli.LongOption;
 import merrimackutil.cli.OptionParser;
 import merrimackutil.json.JsonIO;
@@ -135,8 +144,14 @@ public class KDCClient {
                 kdcObj.put("address", "127.0.0.1");
                 kdcObj.put("port", 5000);
 
+                JSONObject echoObj = new JSONObject();
+                echoObj.put("host-name", "echoservice");
+                echoObj.put("address", "127.0.0.1");
+                echoObj.put("port", 5001); // 👈 Match what your EchoService is actually using
+
                 JSONArray hostArray = new JSONArray();
                 hostArray.add(kdcObj);
+                hostArray.add(echoObj);
 
                 JSONObject root = new JSONObject();
                 root.put("hosts", hostArray);
@@ -172,16 +187,18 @@ public class KDCClient {
         }
     }
 
+   
+
     public static Channel authenticateWithKDC(String username, String password, String host, int port) {
         try {
             // Open connection manually
             Socket socket = new Socket(host, port);
             Channel channel = new Channel(socket);
-
+    
             // Message 1: Send identity claim
             RFC1994Claim claim = new RFC1994Claim(username);
             channel.sendMessage(claim);
-
+    
             // Message 2: Receive challenge
             JSONObject challengeJson = channel.receiveMessage();
             if (!challengeJson.getString("type").equals("RFC1994 Challenge")) {
@@ -189,36 +206,35 @@ public class KDCClient {
                 channel.close(); // clean up
                 return null;
             }
-
+    
             RFC1994Challenge challenge = new RFC1994Challenge("");
             challenge.deserialize(challengeJson);
             byte[] challengeBytes = Base64.getDecoder().decode(challenge.getChallenge());
-
+    
             // Compute hash of password and challenge using SHA-256
             byte[] secretBytes = (password + new String(challengeBytes)).getBytes();
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hashBytes = digest.digest(secretBytes);
             String hashBase64 = Base64.getEncoder().encodeToString(hashBytes);
-
+    
             // Message 3: Send response
             RFC1994Response response = new RFC1994Response(hashBase64);
             channel.sendMessage(response);
-
+    
             // Message 4: Receive result
             JSONObject resultJson = channel.receiveMessage();
             RFC1994Result result = new RFC1994Result(false);
             result.deserialize(resultJson);
-
+    
             if (result.getResult()) {
                 System.out.println("Authentication successful");
-                startEchoClient(channel);
                 return channel; // return open channel
             } else {
                 System.out.println("Authentication failed: Invalid password");
                 channel.close();
                 return null;
             }
-
+    
         } catch (Exception e) {
             System.err.println("Error during authentication: " + e.getMessage());
             e.printStackTrace();
@@ -243,19 +259,127 @@ public class KDCClient {
         return Base64.getEncoder().encodeToString(combined);
     }
 
+
+    public static void connectToService(TicketResponse response, String base64SessionKey) {
+    try {
+        Tuple<String, Integer> serviceHost = getHostInfo(service);
+        Socket socket = new Socket(serviceHost.getFirst(), serviceHost.getSecond());
+        Channel serviceChannel = new Channel(socket);
+
+        // Step 1: Derive session key from password
+        byte[] sessionKeyBytes = Base64.getDecoder().decode(base64SessionKey);
+        System.out.println("🔑 [CLIENT] Using session key bytes: " + Base64.getEncoder().encodeToString(sessionKeyBytes));
+        SecretKeySpec ks = new SecretKeySpec(sessionKeyBytes, "AES");
+
+        // Step 2: Generate fresh nonce Nc
+        byte[] nonceClient = new byte[16];
+        new SecureRandom().nextBytes(nonceClient);
+        String base64Nc = Base64.getEncoder().encodeToString(nonceClient);
+
+        // Step 3: Send ClientHello (Ticket + Nc)
+        JSONObject ticketJson = (JSONObject) response.getTicket().toJSONType();
+        ClientHello hello = new ClientHello(ticketJson, base64Nc);
+        serviceChannel.sendMessage(hello);
+        System.out.println("📤 Sent ClientHello");
+
+        // Step 4: Receive HandshakeResponse
+        JSONObject responseJson = serviceChannel.receiveMessage();
+        HandshakeResponse handshake = new HandshakeResponse("", "", "", "");
+        handshake.deserialize(responseJson);
+        System.out.println("📥 Received HandshakeResponse");
+
+        // Step 5: Decrypt Enc(Nc) and verify it matches original
+        String encNcCombined = combineIVandCipher(handshake.getIv(), handshake.getEncryptedNonce());
+        byte[] decrypted = CryptoUtils.decryptAESGCMToBytes(encNcCombined, ks);
+        System.out.println("🧾 [CLIENT] Original Nc: " + base64Nc);
+        System.out.println("🔓 [CLIENT] Decrypted enc(Nc): " + Base64.getEncoder().encodeToString(decrypted));
+        if (!Base64.getEncoder().encodeToString(decrypted).equals(base64Nc)) {
+            throw new SecurityException("❌ Server failed to prove knowledge of session key.");
+        }
+
+        System.out.println("✅ Verified encrypted Nc matches");
+
+        // Step 6: Generate fresh Nr and send ClientResponse
+        byte[] nonceR = new byte[16];
+        new SecureRandom().nextBytes(nonceR);
+        String base64Nr = Base64.getEncoder().encodeToString(nonceR);
+
+        byte[] nonceS = Base64.getDecoder().decode(handshake.getNonce()); // Ns
+        byte[] responseIv = new byte[12];
+        new SecureRandom().nextBytes(responseIv);
+        Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+        cipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, responseIv));
+        byte[] encNs = cipher.doFinal(nonceS);
+
+        ClientResponse finalResp = new ClientResponse(
+            base64Nr,
+            user,
+            Base64.getEncoder().encodeToString(responseIv),
+            Base64.getEncoder().encodeToString(encNs)
+        );
+        serviceChannel.sendMessage(finalResp);
+        System.out.println("📤 Sent ClientResponse");
+
+        // ✅ Step 7: Encrypted message exchange
+        try {
+            // Prompt user for message
+            System.out.print("Message to send: ");
+            Scanner sc = new Scanner(System.in);
+            String input = sc.nextLine();
+
+            // Construct message JSON with nonce, user, service, and message
+            byte[] msgIv = new byte[12];
+            new SecureRandom().nextBytes(msgIv);
+            byte[] msgNonce = new byte[16];
+            new SecureRandom().nextBytes(msgNonce);
+            String base64Nonce = Base64.getEncoder().encodeToString(msgNonce);
+
+            JSONObject payload = new JSONObject();
+            payload.put("nonce", base64Nonce);
+            payload.put("user", user);
+            payload.put("service", service);
+            payload.put("message", input);
+
+            String payloadStr = payload.getFormattedJSON(); // or toString()
+            Cipher encryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+            encryptCipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, msgIv));
+            byte[] encryptedMessage = encryptCipher.doFinal(payloadStr.getBytes(StandardCharsets.UTF_8));
+
+            // Wrap in outer JSON
+            JSONObject msgObj = new JSONObject();
+            msgObj.put("iv", Base64.getEncoder().encodeToString(msgIv));
+            msgObj.put("message", Base64.getEncoder().encodeToString(encryptedMessage));
+            serviceChannel.sendMessage(msgObj);
+
+            // Receive encrypted response
+            JSONObject respJson = serviceChannel.receiveMessage();
+            byte[] respIv = Base64.getDecoder().decode(respJson.getString("iv"));
+            byte[] respCipher = Base64.getDecoder().decode(respJson.getString("message"));
+
+            Cipher decryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+            decryptCipher.init(Cipher.DECRYPT_MODE, ks, new GCMParameterSpec(128, respIv));
+            byte[] decryptedResponse = decryptCipher.doFinal(respCipher);
+
+            // Print response
+            String responseText = new String(decryptedResponse, StandardCharsets.UTF_8);
+            System.out.println(responseText);
+
+        } catch (Exception e) {
+            System.err.println("❌ Error during encrypted message exchange: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+    } catch (Exception e) {
+        System.err.println("❌ Error during handshake with service: " + e.getMessage());
+        e.printStackTrace();
+    }
+}
+
     private static void userauth(String[] args, String user, String service, String hostsFile) {
         if (user == null) {
             user = promptForUsername("Enter username");
-        } else if (service == null) {
-            service = promptForUsername("Enter service");
         }
 
-        if (hostsFile == null) {
-            hostsFile = promptForUsername("Enter hosts file");
-        }
-
-        // 🔑 Prompt for password
-        System.out.println("Prompting for password...");
         String password = promptForPassword("Enter password");
 
         // 🔐 Load KDC host info (forces hosts.json to be created if needed)
@@ -266,33 +390,28 @@ public class KDCClient {
         Channel channel = authenticateWithKDC(user, password, kdcHost, kdcPort);
         if (channel != null) {
             try {
-                // 🔑 Request a ticket from KDC
-                new TicketRequest(service, user);
+                TicketRequest req = new TicketRequest(service, user);
+                channel.sendMessage(req);
+
                 JSONObject respJson = channel.receiveMessage();
                 TicketResponse resp = new TicketResponse(null, null);
                 resp.deserialize(respJson);
 
-                String combined = combineIVandCipher(resp.getTicket().getIv(), resp.getSessionKey());
-                String decryptedBase64Key = CryptoUtils.decryptAESGCM(combined, password);
+                String encryptedSessionKey = resp.getSessionKey();
+                String base64SessionKey = CryptoUtils.decryptAESGCM(encryptedSessionKey, password);
+                System.out.println("🔑 [CLIENT] Decrypted Session Key (base64): " + base64SessionKey);
+
+
 
                 System.out.println("Ticket and session key received");
-                System.out.println("Session key (base64): " + decryptedBase64Key);
+                System.out.println("Session key (base64): " + base64SessionKey);
 
-                // If service is echoService, start EchoClient
-                if (service.equalsIgnoreCase("echoService")) {
-                    startEchoClient(channel);
-                } else {
-                    System.out.println("Service is not known.");
-                }
+                connectToService(resp, base64SessionKey);
 
                 channel.close();
             } catch (Exception e) {
                 System.err.println("Error requesting session key: " + e.getMessage());
             }
         }
-    }
-
-    private static void startEchoClient(Channel channel) {
-        EchoClient.main(new String[]{}, channel);  // Pass the channel to EchoClient.main()
     }
 }
