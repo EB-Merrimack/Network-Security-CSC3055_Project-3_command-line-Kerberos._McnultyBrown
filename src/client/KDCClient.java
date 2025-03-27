@@ -24,7 +24,6 @@ import common.service.ClientResponse;
 import common.service.HandshakeResponse;
 import merrimackutil.cli.LongOption;
 import merrimackutil.cli.OptionParser;
-import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONArray;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.net.hostdb.HostsDatabase;
@@ -40,73 +39,18 @@ public class KDCClient {
     private static String kdcHost;
     private static int kdcPort;
 
-    public static void usageClient(Channel channel) {
-        // Create an instance of the UsageMessage class
-        UsageMessage usageMessage = new UsageMessage();
-    
-        // Send the serialized JSON object over the channel using JsonIO.writeSerializedObject
-        JsonIO.writeSerializedObject(usageMessage, channel.getWriter());  // Ensure you're passing PrintWriter
-    
-        // Exit the program
+    public static void usageClient() {
+        System.out.println("usage: ");
+        System.out.println("    client --hosts <hostfile> --user <user> --service <service>");
+        System.out.println("    client --user <user> --service <service>");
+        System.out.println("options: ");
+        System.out.println("    -h, --hosts Set the hosts file.");
+        System.out.println("    -u, --user The user name.");
+        System.out.println("    -s, --service The name of the service.");
         System.exit(1);
     }
 
-    public static void main(String[] args) {
-        String hostsFile = "host.json";
-        String user = null;
-        String service = null;
-
-        UsageMessage usageMessage = new UsageMessage();
-
-        for (int i = 0; i < args.length; i++) {
-            if (args[i].equals("-h") || args[i].equals("--hosts")) {
-                if (i + 1 < args.length) {
-                    hostsFile = args[i + 1];
-                    i++; // Skip the next argument as it's the value for --hosts
-                } else {
-                    System.err.println("Error: Missing value for --hosts.");
-                    System.out.println(usageMessage.getUsageMessage());
-                    return;
-                }
-            } else if (args[i].equals("-u") || args[i].equals("--user")) {
-                if (i + 1 < args.length) {
-                    user = args[i + 1];
-                    i++; // Skip the next argument as it's the value for --user
-                } else {
-                    System.err.println("Error: Missing value for --user.");
-                    System.out.println(usageMessage.getUsageMessage());
-                    return;
-                }
-            } else if (args[i].equals("-s") || args[i].equals("--service")) {
-                if (i + 1 < args.length) {
-                    service = args[i + 1];
-                    i++; // Skip the next argument as it's the value for --service
-                } else {
-                    System.err.println("Error: Missing value for --service.");
-                    System.out.println(usageMessage.getUsageMessage());
-                    return;
-                }
-            } else if (args[i].equals("-h") || args[i].equals("--help")) {
-                System.out.println(usageMessage.getUsageMessage());
-                return; // Exit after showing help
-            } else {
-                System.err.println("Invalid argument: " + args[i]);
-                System.out.println(usageMessage.getUsageMessage());
-                return; // Exit on invalid argument
-            }
-        }
-
-        // Ensure that both --user and --service are provided
-        if (user == null || service == null) {
-            System.err.println("Error: Both --user and --service must be specified.");
-            System.out.println(usageMessage.getUsageMessage());
-            return;
-        }
-
-        // Proceed with normal execution
-        userauth(args, user, service, hostsFile);
-    }
-
+    
     public static String promptForUsername(String msg) {
         String usrnm;
         Console cons = System.console();
@@ -119,22 +63,50 @@ public class KDCClient {
     }
 
     public static String promptForPassword(String msg) {
+        String passwd;
         Console cons = System.console();
-        char[] passwdArray = null;
-    
+
         do {
-            System.out.print(msg + ": ");
-            passwdArray = cons.readPassword(); // This hides the password input with dots
-        } while (passwdArray == null || passwdArray.length == 0); // Ensure non-empty password
-    
-        return new String(passwdArray); // Convert char array to String
+            passwd = new String(cons.readPassword(msg + ": "));
+        } while (passwd.isEmpty());
+
+        return passwd;
     }
-    
+
+    public static void processArgs(String[] args) {
+        OptionParser parser;
+
+        LongOption[] opts = new LongOption[3];
+        opts[0] = new LongOption("hosts", false, 'h');
+        opts[1] = new LongOption("user", true, 'u');
+        opts[2] = new LongOption("service", true, 's');
+
+        Tuple<Character, String> currOpt;
+
+        parser = new OptionParser(args);
+        parser.setLongOpts(opts);
+        parser.setOptString("hu:s");
+
+        while (parser.getOptIdx() != args.length) {
+            currOpt = parser.getLongOpt(false);
+
+            switch (currOpt.getFirst()) {
+                case 'h':
+                    break;
+                case 'u':
+                    user = currOpt.getSecond();
+                    break;
+                case 's':
+                    service = currOpt.getSecond();
+                    break;
+            }
+        }
+    }
 
     public static Tuple<String, Integer> getHostInfo(String hostName) {
         File file = new File("hosts.json");
 
-        // If file doesn't exist, create a default one
+        //If file doesn't exist, create a default one
         if (!file.exists()) {
             try {
                 System.out.println("Creating default hosts.json...");
@@ -167,7 +139,7 @@ public class KDCClient {
             }
         }
 
-        // Load host info
+        //Load host info
         try {
             HostsDatabase db = new HostsDatabase(file);
 
@@ -186,8 +158,6 @@ public class KDCClient {
             return null;
         }
     }
-
-   
 
     public static Channel authenticateWithKDC(String username, String password, String host, int port) {
         try {
@@ -375,7 +345,9 @@ public class KDCClient {
     }
 }
 
-    private static void userauth(String[] args, String user, String service, String hostsFile) {
+    public static void main(String[] args) {
+        processArgs(args);
+
         if (user == null) {
             user = promptForUsername("Enter username");
         }
