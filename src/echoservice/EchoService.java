@@ -14,6 +14,8 @@ import common.ConnectionHandler;
 import common.EchoConnection;
 import merrimackutil.util.NonceCache;
 
+import java.util.Base64;
+
 public class EchoService {
 
     private static String configFile = null; // Config file must be explicitly set
@@ -148,5 +150,10 @@ public class EchoService {
     private static void sendMessageToChannel(Channel channel, String message) {
         // Send message to the channel (this is a placeholder for actual implementation)
         System.out.println(message);  // Just print to the console for now
+    }
+
+    // Add method to decode Base64
+    private static byte[] decodeBase64(String base64String) {
+        return Base64.getDecoder().decode(base64String);
     }
 }

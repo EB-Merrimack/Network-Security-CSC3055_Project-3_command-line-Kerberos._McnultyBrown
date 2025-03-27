@@ -2,6 +2,7 @@ package common;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.Base64;
 
 import kdcd.KDCServer;
 import merrimackutil.util.NonceCache;
@@ -94,12 +95,10 @@ public class ConnectionHandler implements Runnable
      * @param message the received JSON message.
      * @return the extracted nonce as a byte array.
      */
-    private byte[] extractNonceFromMessage(JSONObject message)
-    {
-        // Example: Extract the nonce (in practice, it would be part of the message)
-        byte[] nonce = new byte[16];  // For example, 16-byte nonce
-
-        // In a real case, you would extract the nonce properly from the client message.
-        return nonce;  // Return the extracted nonce
+    private byte[] extractNonceFromMessage(JSONObject message) {
+        // Extract the nonce from the received JSON message
+        String nonceBase64 = message.getString("nonce");  // Get the Base64 encoded nonce
+        return Base64.getDecoder().decode(nonceBase64);  // Decode it to bytes
     }
+    
 }

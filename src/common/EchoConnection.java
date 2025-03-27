@@ -1,107 +1,111 @@
 package common;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
-import merrimackutil.util.NonceCache;
+import java.util.Base64;
+
+import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
-import common.Channel;
-import kdcd.KDCServer;
+import merrimackutil.util.NonceCache;
 
 public class EchoConnection implements Runnable {
-    private Socket sock;
-    private NonceCache nonceCache; // NonceCache to check for replay attacks
-    private Channel channel; // Channel instance for communication
 
-    /**
-     * Creates a new connection handler with nonce cache and channel.
-     * @param sock the socket associated with the connection.
-     * @param nonceCache the nonce cache to check for replay attacks.
-     */
-    public EchoConnection(Socket sock, NonceCache nonceCache) throws IOException {
+    private Socket sock;
+    private NonceCache nonceCache;
+
+    public EchoConnection(Socket sock, NonceCache nonceCache) {
         this.sock = sock;
         this.nonceCache = nonceCache;
-
-        // Create a new Channel instance with the socket
-        this.channel = new Channel(sock);
     }
 
-    /**
-     * How to handle the connection
-     */
+    @Override
     public void run() {
-        try {
-            // Receive the message from the client
-            JSONObject message = channel.receiveMessage(); // Assume Channel handles input stream
+        System.out.println("EchoConnection.run() - Starting processing of connection from " + sock.getRemoteSocketAddress());
 
-            // Extract the nonce from the received message
-            byte[] receivedNonce = extractNonceFromMessage(message);
+        // Read the incoming message (raw string from Socket)
+        String incomingMessage = readMessageFromChannel();
+        System.out.println("Received message from client: " + incomingMessage);
 
-            // Check if the nonce has already been used
-            if (nonceCache.containsNonce(receivedNonce)) {
-                // Create a response indicating a replay attack
-                JSONObject response = new JSONObject();
-                response.put("error", "Nonce replay detected! Request rejected.");
-                
-                // Send the error response back to the client
-                channel.sendMessage(response); // Assume Channel handles output stream
+        // Parse the JSON message
+        JSONObject message = JsonIO.readObject(incomingMessage);
+        System.out.println("Parsed JSON message: " + message);
 
-                // Close the connection
-                sock.close();
-                return;
-            }
+        // Decode the nonce (Base64)
+        String encodedNonce = message.getString("nonce");
+        System.out.println("Decoded nonce from message: " + encodedNonce);
 
-            // If the nonce is not a replay, add it to the nonce cache
-            nonceCache.addNonce(receivedNonce);
+        byte[] decodedNonce = decodeBase64(encodedNonce);
+        System.out.println("Decoded nonce (Base64 to bytes): " + new String(decodedNonce));
 
-            // Process the received data (e.g., echo it back)
-            String receivedData = message.getString("data"); // Assuming the message contains data in "data" field
-            String responseData = receivedData.toUpperCase(); // Process the message (e.g., convert to uppercase)
-
-            // Create a new response message
-            JSONObject response = new JSONObject();
-            response.put("data", responseData);
-
-            // Send the response back to the client
-            channel.sendMessage(response); // Assume Channel handles output stream
-
-            // Close the connection
-            sock.close();
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            try {
-                sock.close(); // Ensure the socket is closed if an error occurs
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        // Check if nonce has been seen before (replay attack prevention)
+        if (nonceCache.containsNonce(decodedNonce)) {
+            sendMessageToChannel("Replay attack detected.");
+            System.out.println("Replay attack detected for nonce: " + encodedNonce);
+            return;
         }
+
+        // Add nonce to the cache to prevent future replays
+        nonceCache.addNonce(decodedNonce);
+        System.out.println("Nonce added to cache to prevent future replays: " + encodedNonce);
+
+        // Process the 'data' field (user's message) and convert it to uppercase
+        String data = message.getString("data");
+        System.out.println("Original data received from client: " + data);
+
+        String upperCaseData = data.toUpperCase();  // Convert the message to uppercase
+        System.out.println("Converted data to uppercase: " + upperCaseData);
+
+        // Send the transformed message back to the client
+        sendMessageToChannel("Received data (uppercase): " + upperCaseData);
+        System.out.println("Sent transformed message to client: " + upperCaseData);
     }
 
-    /**
-     * Simulates extracting the nonce from the received message.
-     * @param message the received JSON message.
-     * @return the extracted nonce as a byte array.
-     */
-    private byte[] extractNonceFromMessage(JSONObject message) {
-        // Extract the nonce from the message JSON. Assuming the nonce is stored under the key "nonce".
-        String nonceString = message.getString("nonce");  // Get the nonce as a String (it might be Base64 encoded)
-        
-        if (nonceString == null || nonceString.isEmpty()) {
-            throw new IllegalArgumentException("Nonce missing or empty in the message.");
+    private String readMessageFromChannel() {
+        System.out.println("Reading message from channel...");
+        // Read the incoming message from the socket's input stream using BufferedReader
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(sock.getInputStream()))) {
+            StringBuilder message = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                message.append(line).append("\n");  // Read the whole message (assuming newline-delimited)
+            }
+            
+            // If the connection is closed or no data is received, return an empty string.
+            if (message.length() == 0) {
+                throw new RuntimeException("Connection closed or no data received");
+            }
+    
+            return message.toString();
+        } catch (IOException e) {
+            System.err.println("Error reading message from channel: " + e.getMessage());
+            throw new RuntimeException("Error reading message", e);
         }
-        
-        // Convert the nonce string (Base64 encoded) to a byte array
-        byte[] nonce = decodeBase64(nonceString);  // Assuming the nonce is Base64 encoded
-        
-        // Return the byte array of the nonce
-        return nonce;
     }
     
-    /**
-     * Decodes a Base64 encoded string into a byte array.
-     * @param encoded The Base64 encoded string.
-     * @return The decoded byte array.
-     */
-    private byte[] decodeBase64(String encoded) {
-        return java.util.Base64.getDecoder().decode(encoded);  // Using Java's Base64 decoder
+
+    private void sendMessageToChannel(String message) {
+        // Send the message back to the client via the socket's output stream
+        try (PrintWriter writer = new PrintWriter(sock.getOutputStream(), true)) {
+            writer.println(message);  // Write message and send to client
+            System.out.println("Message sent to client: " + message);
+        } catch (IOException e) {
+            System.err.println("Error sending message to client: " + e.getMessage());
+            throw new RuntimeException("Error sending message", e);
+        }
+    }
+
+    private byte[] decodeBase64(String base64String) {
+        System.out.println("Decoding Base64 string: " + base64String);
+        try {
+            byte[] decodedBytes = Base64.getDecoder().decode(base64String);
+            System.out.println("Decoded Base64 string to byte array: " + new String(decodedBytes));
+            return decodedBytes;
+        } catch (IllegalArgumentException e) {
+            System.err.println("Error decoding Base64 string: " + e.getMessage());
+            throw new RuntimeException("Error decoding Base64 string", e);
+        }
     }
 }
