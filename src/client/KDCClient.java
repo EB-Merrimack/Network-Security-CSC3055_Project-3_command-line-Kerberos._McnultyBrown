@@ -211,7 +211,7 @@ public class KDCClient {
 
             if (result.getResult()) {
                 System.out.println("Authentication successful");
-                startEchoClient();
+                startEchoClient(channel);
                 return channel; // return open channel
             } else {
                 System.out.println("Authentication failed: Invalid password");
@@ -280,7 +280,7 @@ public class KDCClient {
 
                 // If service is echoService, start EchoClient
                 if (service.equalsIgnoreCase("echoService")) {
-                    startEchoClient();
+                    startEchoClient(channel);
                 } else {
                     System.out.println("Service is not known.");
                 }
@@ -292,7 +292,7 @@ public class KDCClient {
         }
     }
 
-    private static void startEchoClient() {
-        EchoClient.main(new String[]{}); // Start the EchoClient
+    private static void startEchoClient(Channel channel) {
+        EchoClient.main(new String[]{}, channel);  // Pass the channel to EchoClient.main()
     }
 }

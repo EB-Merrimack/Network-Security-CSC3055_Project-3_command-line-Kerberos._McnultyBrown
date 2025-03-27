@@ -9,12 +9,14 @@ import java.util.Base64;
 import merrimackutil.util.NonceCache;
 import java.security.SecureRandom;
 import merrimackutil.json.types.JSONObject;
+import common.Channel;
 
 /**
  * Client to send a message with a nonce to the server.
  */
 public class EchoClient {
-    public static void main (String[] args) {
+
+    public static void main(String[] args, Channel channel) {
         Scanner scan = new Scanner(System.in);
         Socket sock = null;
         Scanner recv = null;
@@ -28,6 +30,9 @@ public class EchoClient {
             // Set up the streams for the socket.
             recv = new Scanner(sock.getInputStream());
             send = new PrintWriter(sock.getOutputStream(), true);
+            
+            // Now, create a Channel instance using the socket
+            channel = new Channel(sock);  // Assuming Channel class is designed to take a socket
         } catch (UnknownHostException ex) {
             System.out.println("Host is unknown.");
             return;
@@ -62,8 +67,8 @@ public class EchoClient {
                 return;
             }
 
-            // Send the JSON object to the server
-            send.println(message.toString());
+            // Send the JSON object to the server via Channel
+            channel.getWriter().println(message.toString());
             System.out.println("Message sent to server: " + message.toString());
         } catch (Exception e) {
             System.out.println("Error occurred while preparing the message: " + e.getMessage());

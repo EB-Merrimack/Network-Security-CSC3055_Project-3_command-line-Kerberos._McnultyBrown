@@ -96,10 +96,12 @@ public class EchoService {
                 Socket sock = server.accept();
                 System.out.println("Connection received.");
 
-                // Pass the nonce cache and channel to the connection handler
-                // The ExecutorService will handle client connections in a thread pool
-                pool.execute(new common.ConnectionHandler(channel, nonceCache));
-            }
+             // Create a new Channel instance for each accepted connection
+             Channel channel = new Channel(sock); // Initialize the Channel with the client socket
+
+             // Pass the nonce cache and channel to the EchoConnection
+             pool.execute(new common.EchoConnection(channel, nonceCache));  // Pass the new channel to EchoConnection
+         }
         } catch (IOException ioe) {
             ioe.printStackTrace();
         } finally {
