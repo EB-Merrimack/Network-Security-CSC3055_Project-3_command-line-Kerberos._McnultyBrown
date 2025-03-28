@@ -23,6 +23,7 @@ public class MessageQueueServer {
 
     // Method to add a message to the user's queue
     public static void putMessage(String user, JSONObject message) throws InterruptedException {
+        System.out.println("Stored message for user " + user + ": " + message.getFormattedJSON());
         getQueue(user).put(message); // Store the message in the queue for the user
     }
 
