@@ -138,17 +138,17 @@ public class Channel implements JSONSerializable {
      * @param iv The Initialization Vector (IV) for encryption.
      * @param message The message to send, typically a JSON object.
      */
-   /**
+    /**
      * Sends an echo message containing the IV and the encrypted message.
      * 
      * @param msgObj The JSON object that contains both the IV and encrypted message.
      */
     public void sendechoMessage(String user, JSONObject msgObj) {
         try {
-            sendMessage(msgObj); // Send message over the network
+            sendMessage(msgObj); // Send message over the network to the server
             System.out.println("Echo Message Sent for user " + user + ": " + msgObj.getFormattedJSON());
     
-            MessageQueueManager.putMessage(user, msgObj); // Store message in the queue
+            MessageQueueServer.putMessage(user, msgObj); // Store the message in the server's queue
         } catch (InterruptedException e) {
             System.err.println("Failed to store message for user " + user);
             Thread.currentThread().interrupt();
@@ -157,12 +157,13 @@ public class Channel implements JSONSerializable {
     
     public JSONObject receiveEchoMessage(String user) throws IOException {
         try {
-            JSONObject message = MessageQueueManager.takeMessage(user); // Wait for a message
+            JSONObject message = MessageQueueServer.takeMessage(user); // Wait for the message from the server
             System.out.println("Received Echo for user " + user + ": " + message.getFormattedJSON());
             return message;
         } catch (InterruptedException e) {
             throw new IOException("Thread interrupted while waiting for message", e);
         }
     }
+    
     
 }
