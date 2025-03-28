@@ -7,7 +7,6 @@ import java.net.Socket;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.Signature;
 import java.util.Base64;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -15,15 +14,13 @@ import java.util.concurrent.Executors;
 import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
 import common.Channel;
-import common.ConnectionHandler;
 import common.SigningServiceHandler;
 import merrimackutil.util.NonceCache;
 
 public class SigningService {
 
-    private static final String DEFAULT_CONFIG_FILE = "src/signingservice/config.json";
+    private static final String DEFAULT_CONFIG_FILE = "src/signature/config.json";
     private static NonceCache nonceCache; // NonceCache instance to prevent replay attacks
-    private static Channel channel; // Channel instance for sending messages
     private static Config config; // Config object to store configuration details
     private static PrivateKey signingKey; // RSA Private Key for signing
 
@@ -47,15 +44,16 @@ public class SigningService {
         } else if (args.length == 2 && (args[0].equals("-c") || args[0].equals("--config"))) {
             configFile = args[1];
         } else if (args.length == 1 && (args[0].equals("-h") || args[0].equals("--help"))) {
-            usageClient(channel);
+            // Show usage info and exit if needed
+            usageClient(null);  // You can call usageClient here even if the channel is null
             return;
         } else {
             System.err.println("Error: Unrecognized arguments.");
-            usageClient(channel);
+            usageClient(null);  // Call usageClient with a null channel or handle appropriately
             return;
         }
 
-        // Start server
+        // Start the server
         startServer(configFile);
     }
 
@@ -78,15 +76,21 @@ public class SigningService {
         }
 
         nonceCache = new NonceCache(16, 60000);
-        // ✅ Start server immediately (NO background thread for now)
+
+        // ✅ Start the server immediately
         try (ServerSocket server = new ServerSocket(config.port)) {
             System.out.println("SigningService started on port " + config.port);
             ExecutorService pool = Executors.newFixedThreadPool(10);
 
             while (true) {
-                Socket sock = server.accept();
+                // Wait for incoming connections
+                Socket clientSocket = server.accept();
                 System.out.println("Connection received.");
-                Channel connChannel = new Channel(sock);
+
+                // Create a new Channel instance for each client connection
+                Channel connChannel = new Channel(clientSocket);
+
+                // Handle the connection using a handler
                 pool.execute(new SigningServiceHandler(connChannel, nonceCache, config, signingKey));
             }
 
@@ -106,13 +110,13 @@ public class SigningService {
         try {
             File file = new File(configFile);
             if (!file.exists()) {
-                sendMessageToChannel(channel, "Config file not found and must be created: " + configFile);
+                System.err.println("Config file not found: " + configFile);
                 System.exit(1);
             }
 
             JSONObject configJson = JsonIO.readObject(new File(configFile));
             if (configJson == null) {
-                sendMessageToChannel(channel, "Error reading configuration file");
+                System.err.println("Error reading configuration file");
                 System.exit(1);
             }
 
@@ -128,21 +132,10 @@ public class SigningService {
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
             signingKey = keyFactory.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(signingKeyBytes));
 
-            sendMessageToChannel(channel, "Loaded configuration from: " + configFile);
+            System.out.println("Loaded configuration from: " + configFile);
         } catch (IOException | java.security.spec.InvalidKeySpecException e) {
             e.printStackTrace();
             throw new IOException("Error loading configuration: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * Utility method to send messages to the channel (for example, the console).
-     * 
-     * @param channel The channel to send the message to.
-     * @param message The message to send.
-     */
-    private static void sendMessageToChannel(Channel channel, String message) {
-        // Send message to the channel (this is a placeholder for actual implementation)
-        System.out.println(message);  // Just print to the console for now
     }
 }
