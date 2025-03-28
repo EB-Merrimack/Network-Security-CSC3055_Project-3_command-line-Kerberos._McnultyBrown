@@ -138,49 +138,40 @@ public class Channel implements JSONSerializable {
      * @param iv The Initialization Vector (IV) for encryption.
      * @param message The message to send, typically a JSON object.
      */
-     /**
+   /**
      * Sends an echo message containing the IV and the encrypted message.
      * 
      * @param msgObj The JSON object that contains both the IV and encrypted message.
      */
     public void sendechoMessage(JSONObject msgObj) {
-        // Sending the message as-is, containing the IV and the encrypted message
         sendMessage(msgObj);
         System.out.println("Echo Message Sent: " + msgObj.getFormattedJSON());
 
-        // Store the sent message in the echoedMessage variable
-        synchronized (this) {
-            echoedMessage = msgObj;
-            messageAvailable = true; // Indicate the message is now available
-            notify(); // Notify any waiting thread that the message is available
+        try {
+            // Put the message in the shared queue
+            MessageQueue.putMessage(msgObj);
+            System.out.println("Message stored in the shared queue: " + msgObj.getFormattedJSON());
+        } catch (InterruptedException e) {
+            System.err.println("Error putting message in the queue: " + e.getMessage());
         }
     }
 
     /**
      * This method waits for a response to an echo message and returns it once received.
-     * It holds the message in the channel until the server calls for it.
+     * It holds the message in the queue until the server calls for it.
      * 
      * @return The echoed message as a JSONObject.
      * @throws IOException If the connection is closed by the peer.
      */
     public JSONObject receiveEchoMessage() throws IOException {
-        synchronized (this) {
-            // If no message is available, wait until it's available
-            while (!messageAvailable) {
-                try {
-                    System.out.println("Waiting for message...");
-                    wait(); // Wait for the message to be set by sendechoMessage
-
-                } catch (InterruptedException e) {
-                    throw new IOException("Thread interrupted while waiting for message", e);
-                }
-            }
-
-            // Once the message is available, return it
-            JSONObject message = echoedMessage;
-            echoedMessage = null; // Clear the message after it is retrieved
-            messageAvailable = false; // Reset the flag
+        try {
+            System.out.println("Waiting for message from shared queue...");
+            // Take the message from the shared queue (this will block until a message is available)
+            JSONObject message = MessageQueue.takeMessage();
+            System.out.println("Message Retrieved from shared queue: " + message.getFormattedJSON());
             return message;
+        } catch (InterruptedException e) {
+            throw new IOException("Error receiving message from queue", e);
         }
     }
 }
