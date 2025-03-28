@@ -9,6 +9,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
 
 import javax.crypto.Cipher;
@@ -75,8 +77,13 @@ public class KDCClient {
         return passwd;
     }
     public static void main(String[] args) {
-        processArgs(args);
-
+        Map<String, String> argsMap = processArgs(args);
+           // If user is not provided in arguments, prompt for username
+           if (argsMap == null) {
+            return; // Exit if argument parsing fails
+        }
+        user = argsMap.get("user");
+        service = argsMap.get("service");
         if (user == null) {
             user = promptForUsername("Enter username");
         }
@@ -115,46 +122,70 @@ public class KDCClient {
             }
         }
     }
-    public static void processArgs(String[] args) {
+    /**
+     * Process the command line arguments to the client.
+     *
+     * This method interprets the command line arguments passed to the client and
+     * sets the global variables user and service accordingly.  If the arguments
+     * do not include values for both user and service, the method prints an
+     * error message and returns.
+     *
+     * @param args The command line arguments to the client.
+     */
+       public static Map<String, String> processArgs(String[] args) {
         OptionParser parser;
     
-        LongOption[] opts = new LongOption[3];
-        opts[0] = new LongOption("hosts", false, 'h');
-        opts[1] = new LongOption("user", true, 'u');
-        opts[2] = new LongOption("service", true, 's');
-    
-        Tuple<Character, String> currOpt;
-    
-        parser = new OptionParser(args);
-        parser.setLongOpts(opts);
-        parser.setOptString("hu:s");
-    
+        String hostsFile = "host.json";
         String user = null;
         String service = null;
-    
-        while (parser.getOptIdx() != args.length) {
-            currOpt = parser.getLongOpt(false);
-    
-            switch (currOpt.getFirst()) {
-                case 'h':
-                    break;
-                case 'u':
-                    user = currOpt.getSecond();
-                    break;
-                case 's':
-                    service = currOpt.getSecond();
-                    break;
+
+        UsageMessage usageMessage = new UsageMessage();
+
+        for (int i = 0; i < args.length; i++) {
+            if (args[i].equals("-h") || args[i].equals("--hosts")) {
+                if (i + 1 < args.length) {
+                    hostsFile = args[i + 1];
+                    i++; // Skip the next argument as it's the value for --hosts
+                } else {
+                    System.err.println("Error: Missing value for --hosts.");
+                    System.out.println(usageMessage.getUsageMessage());
+                    return null; // Return null to indicate error
+                }
+            } else if (args[i].equals("-u") || args[i].equals("--user")) {
+                if (i + 1 < args.length) {
+                    user = args[i + 1];
+                    i++; // Skip the next argument as it's the value for --user
+                } else {
+                    System.err.println("Error: Missing value for --user.");
+                    System.out.println(usageMessage.getUsageMessage());
+                    return null; // Return null to indicate error
+                }
+            } else if (args[i].equals("-s") || args[i].equals("--service")) {
+                if (i + 1 < args.length) {
+                    service = args[i + 1];
+                    i++; // Skip the next argument as it's the value for --service
+                } else {
+                    System.err.println("Error: Missing value for --service.");
+                    System.out.println(usageMessage.getUsageMessage());
+                    return null; // Return null to indicate error
+                }
+            } else if (args[i].equals("-h") || args[i].equals("--help")) {
+                System.out.println(usageMessage.getUsageMessage());
+                return null; // Exit after showing help
+            } else {
+                System.err.println("Invalid argument: " + args[i]);
+                System.out.println(usageMessage.getUsageMessage());
+                return null; // Exit on invalid argument
             }
         }
-    
-        if (user == null || service == null) {
-            System.err.println("Error: Both --user and --service must be specified.");
-            return;
-        }
-    
-        System.out.println("User: " + user);
-        System.out.println("Service: " + service);
+
+        // Return the user and service in a map
+        Map<String, String> result = new HashMap<>();
+        result.put("user", user);
+        result.put("service", service);
+        return result;
     }
+
     
 
     public static Tuple<String, Integer> getHostInfo(String hostName) {
