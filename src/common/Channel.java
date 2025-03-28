@@ -168,7 +168,9 @@ public class Channel implements JSONSerializable {
             // If no message is available, wait until it's available
             while (!messageAvailable) {
                 try {
+                    System.out.println("Waiting for message...");
                     wait(); // Wait for the message to be set by sendechoMessage
+
                 } catch (InterruptedException e) {
                     throw new IOException("Thread interrupted while waiting for message", e);
                 }

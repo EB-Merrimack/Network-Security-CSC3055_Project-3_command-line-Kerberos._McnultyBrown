@@ -135,6 +135,7 @@ try {
 
             while (true) {
                 try {
+                    System.out.println("📥 Waiting for message from client...");
                     // Step 1: Receive encrypted message from client
                     JSONObject incomingMsg = channel.receiveEchoMessage();
                     System.out.println("📥 [SERVICE] Raw incoming message: " + incomingMsg.toString());
