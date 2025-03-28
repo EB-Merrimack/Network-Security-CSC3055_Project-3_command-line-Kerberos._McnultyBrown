@@ -6,7 +6,6 @@ import merrimackutil.json.JsonIO;
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.json.types.JSONType;
-import java.io.InvalidObjectException;
 
 public class Channel implements JSONSerializable {
     private final Socket socket;
@@ -25,13 +24,9 @@ public class Channel implements JSONSerializable {
      * 
      * @param message The message to send, as a JSONObject.
      */
-    public void sendMessage(JSONObject jsonMessage2) {
-            // Create a JSONObject and wrap the string message inside it
-            JSONObject jsonMessage = new JSONObject();
-            jsonMessage.put("message", jsonMessage2);
-
-        // Send the JSONObject using the existing sendMessage method
-        sendMessage(jsonMessage);
+    public void sendMessage(JSONObject jsonMessage) {
+        writer.println(jsonMessage.getFormattedJSON());
+        System.out.println("Sent: " + jsonMessage.getFormattedJSON());
     }
 
     /**

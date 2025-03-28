@@ -70,6 +70,7 @@ public class EchoService {
             return;
         }
     
+        nonceCache = new NonceCache(16, 60000);
         // ✅ Start server immediately (NO background thread for now)
         try (ServerSocket server = new ServerSocket(config.port)) {
             System.out.println("EchoService started on port " + config.port);
