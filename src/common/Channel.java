@@ -145,6 +145,8 @@ public class Channel implements JSONSerializable {
      */
     public void sendechoMessage(String user, JSONObject msgObj) {
         try {
+            //startmesseageserver
+            MessageQueueServer.startMessageServer();
             sendMessage(msgObj); // Send message over the network to the server
             System.out.println("Echo Message Sent for user " + user + ": " + msgObj.getFormattedJSON());
     

@@ -70,4 +70,9 @@ public class MessageQueueServer {
             }
         }
     }
+
+    public static void startMessageServer() {
+        String[] args = {};  // Empty arguments array, as the main method doesn't use them
+        main(args);  // Call the main method to start the server
+  }
 }
