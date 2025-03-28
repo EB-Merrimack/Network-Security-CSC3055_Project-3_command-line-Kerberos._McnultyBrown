@@ -11,6 +11,9 @@ public class Channel implements JSONSerializable {
     private final Socket socket;
     private final BufferedReader reader;
     private final PrintWriter writer;
+    private JSONObject echoedMessage = null; // Holds the echoed message
+    private boolean messageAvailable = false; // Flag to indicate when a message is available
+
 
     public Channel(Socket socket) throws IOException {
         this.socket = socket;
@@ -19,8 +22,8 @@ public class Channel implements JSONSerializable {
     }
 
     /**
-     * takes a jason object and makes it serializable to be able to be writen 
-     * through the send message method
+     * Takes a JSON object and makes it serializable to be able to be written 
+     * through the send message method.
      * 
      * @param message The message to send, as a JSONObject.
      */
@@ -31,7 +34,7 @@ public class Channel implements JSONSerializable {
 
     /**
      * Send a message over the channel to the socket. 
-     * using write serialized object
+     * Using write serialized object.
      * 
      * @param message The message to send, as a JSONSerializable object.
      */
@@ -51,7 +54,6 @@ public class Channel implements JSONSerializable {
      * @return The received message as a JSONObject.
      * @throws IOException If the connection is closed by the peer.
      */
-
     public JSONObject receiveMessage() throws IOException {
         String line = reader.readLine();
         if (line == null) {
@@ -96,15 +98,14 @@ public class Channel implements JSONSerializable {
         }
     }
 
-/**
- * Serialize the Channel to a JSONType.
- * 
- * The serialized JSONType is an empty JSONObject, as the Channel 
- * currently does not contain serializable fields.
- * 
- * @return The JSONType containing the serialized Channel.
- */
-
+    /**
+     * Serialize the Channel to a JSONType.
+     * 
+     * The serialized JSONType is an empty JSONObject, as the Channel 
+     * currently does not contain serializable fields.
+     * 
+     * @return The JSONType containing the serialized Channel.
+     */
     @Override
     public JSONType toJSONType() {
         return new JSONObject();
@@ -114,7 +115,6 @@ public class Channel implements JSONSerializable {
         return writer; // Return the PrintWriter instance to allow other methods to use it
     }
 
-   
     public InputStream getInputStream() {
         try {
             return socket.getInputStream(); // Return the input stream of the socket
@@ -128,6 +128,57 @@ public class Channel implements JSONSerializable {
             return socket.getOutputStream(); // Return the output stream of the socket
         } catch (IOException e) {
             throw new UnsupportedOperationException("Error getting OutputStream: " + e.getMessage());
+        }
+    }
+
+    /**
+     * This method sends an echo message, containing both the IV and message.
+     * The method assumes that the message and IV are properly formatted in JSON.
+     * 
+     * @param iv The Initialization Vector (IV) for encryption.
+     * @param message The message to send, typically a JSON object.
+     */
+     /**
+     * Sends an echo message containing the IV and the encrypted message.
+     * 
+     * @param msgObj The JSON object that contains both the IV and encrypted message.
+     */
+    public void sendechoMessage(JSONObject msgObj) {
+        // Sending the message as-is, containing the IV and the encrypted message
+        sendMessage(msgObj);
+        System.out.println("Echo Message Sent: " + msgObj.getFormattedJSON());
+
+        // Store the sent message in the echoedMessage variable
+        synchronized (this) {
+            echoedMessage = msgObj;
+            messageAvailable = true; // Indicate the message is now available
+            notify(); // Notify any waiting thread that the message is available
+        }
+    }
+
+    /**
+     * This method waits for a response to an echo message and returns it once received.
+     * It holds the message in the channel until the server calls for it.
+     * 
+     * @return The echoed message as a JSONObject.
+     * @throws IOException If the connection is closed by the peer.
+     */
+    public JSONObject receiveEchoMessage() throws IOException {
+        synchronized (this) {
+            // If no message is available, wait until it's available
+            while (!messageAvailable) {
+                try {
+                    wait(); // Wait for the message to be set by sendechoMessage
+                } catch (InterruptedException e) {
+                    throw new IOException("Thread interrupted while waiting for message", e);
+                }
+            }
+
+            // Once the message is available, return it
+            JSONObject message = echoedMessage;
+            echoedMessage = null; // Clear the message after it is retrieved
+            messageAvailable = false; // Reset the flag
+            return message;
         }
     }
 }

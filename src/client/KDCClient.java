@@ -411,7 +411,7 @@ while (true) {
         msgObj.put("iv", Base64.getEncoder().encodeToString(msgIv));
         msgObj.put("message", Base64.getEncoder().encodeToString(encryptedMessage));
         System.out.println("Message JSON to send: " + msgObj);  // Indented JSON output
-        serviceChannel.sendMessage(msgObj);
+        serviceChannel.sendechoMessage(msgObj);
 
         // Receive encrypted response
         JSONObject respJson = serviceChannel.receiveMessage();
