@@ -76,34 +76,60 @@ public class KDCClient {
     }
 
     public static void processArgs(String[] args) {
-        OptionParser parser;
+        String hostsFile = "host.json";
+        String user = null;
+        String service = null;
+        
+        UsageMessage usageMessage = new UsageMessage();
 
-        LongOption[] opts = new LongOption[3];
-        opts[0] = new LongOption("hosts", false, 'h');
-        opts[1] = new LongOption("user", true, 'u');
-        opts[2] = new LongOption("service", true, 's');
-
-        Tuple<Character, String> currOpt;
-
-        parser = new OptionParser(args);
-        parser.setLongOpts(opts);
-        parser.setOptString("hu:s");
-
-        while (parser.getOptIdx() != args.length) {
-            currOpt = parser.getLongOpt(false);
-
-            switch (currOpt.getFirst()) {
-                case 'h':
-                    break;
-                case 'u':
-                    user = currOpt.getSecond();
-                    break;
-                case 's':
-                    service = currOpt.getSecond();
-                    break;
+        for (int i = 0; i < args.length; i++) {
+            if (args[i].equals("-h") || args[i].equals("--hosts")) {
+                if (i + 1 < args.length) {
+                    hostsFile = args[i + 1];
+                    i++; // Skip the next argument as it's the value for --hosts
+                } else {
+                    System.err.println("Error: Missing value for --hosts.");
+                    System.out.println(usageMessage.getUsageMessage());
+                    return;
+                }
+            } else if (args[i].equals("-u") || args[i].equals("--user")) {
+                if (i + 1 < args.length) {
+                    user = args[i + 1];
+                    i++; // Skip the next argument as it's the value for --user
+                } else {
+                    System.err.println("Error: Missing value for --user.");
+                    System.out.println(usageMessage.getUsageMessage());
+                    return;
+                }
+            } else if (args[i].equals("-s") || args[i].equals("--service")) {
+                if (i + 1 < args.length) {
+                    service = args[i + 1];
+                    i++; // Skip the next argument as it's the value for --service
+                } else {
+                    System.err.println("Error: Missing value for --service.");
+                    System.out.println(usageMessage.getUsageMessage());
+                    return;
+                }
+            } else if (args[i].equals("-h") || args[i].equals("--help")) {
+                System.out.println(usageMessage.getUsageMessage());
+                return; // Exit after showing help
+            } else {
+                System.err.println("Invalid argument: " + args[i]);
+                System.out.println(usageMessage.getUsageMessage());
+                return; // Exit on invalid argument
             }
         }
+
+        // Ensure that both --user and --service are provided
+        if (user == null || service == null) {
+            System.err.println("Error: Both --user and --service must be specified.");
+            System.out.println(usageMessage.getUsageMessage());
+            return;
+        }
+
+       
     }
+
 
     public static Tuple<String, Integer> getHostInfo(String hostName) {
         File file = new File("hosts.json");
