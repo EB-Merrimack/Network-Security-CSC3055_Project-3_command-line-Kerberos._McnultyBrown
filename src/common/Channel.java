@@ -142,8 +142,9 @@ public class Channel implements JSONSerializable {
      * Sends an echo message containing the IV and the encrypted message.
      * 
      * @param msgObj The JSON object that contains both the IV and encrypted message.
+ * @throws Exception 
      */
-    public void sendechoMessage(String user, JSONObject msgObj) {
+    public void sendechoMessage(String user, JSONObject msgObj) throws Exception {
         try {
             sendMessage(msgObj); // Send message over the network
             System.out.println("Echo Message Sent for user " + user + ": " + msgObj.getFormattedJSON());
@@ -155,7 +156,7 @@ public class Channel implements JSONSerializable {
         }
     }
     
-    public JSONObject receiveEchoMessage(String user) throws IOException {
+    public JSONObject receiveEchoMessage(String user) throws Exception {
         try {
             JSONObject message = MessageQueueManager.takeMessage(user); // Wait for a message
             System.out.println("Received Echo for user " + user + ": " + message.getFormattedJSON());
