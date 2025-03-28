@@ -87,29 +87,51 @@ public class EchoServiceHandler implements Runnable {
             HandshakeResponse response = new HandshakeResponse(base64Ns, ticket.getService(), ivOut, encNc);
             channel.sendMessage(response);
 
-            // 🧾 Step 3: Receive ClientResponse
-            System.out.println("📥 Waiting for ClientResponse...");
-            JSONObject clientRespJson = channel.receiveMessage();
-            ClientResponse clientResp = new ClientResponse("", "", "", "");
-            clientResp.deserialize(clientRespJson);
+          // 🧾 Step 3: Receive ClientResponse
+System.out.println("📥 Waiting for ClientResponse...");
+JSONObject clientRespJson = channel.receiveMessage();
+System.out.println("📥 Received ClientResponse JSON: " + clientRespJson.toString());
 
-            // 🔓 Decrypt enc(Ns)
-            System.out.println("🔐 Decrypting client's proof (enc(Ns))...");
-            byte[] ivBytesResp = Base64.getDecoder().decode(clientResp.getIv());
-            byte[] encNs = Base64.getDecoder().decode(clientResp.getEncryptedNonce());
+ClientResponse clientResp = new ClientResponse("", "", "", "");
+clientResp.deserialize(clientRespJson);
 
-            Cipher decryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
-            decryptCipher.init(Cipher.DECRYPT_MODE, ks, new GCMParameterSpec(128, ivBytesResp));
-            byte[] decryptedNs = decryptCipher.doFinal(encNs);
-            String base64DecryptedNs = Base64.getEncoder().encodeToString(decryptedNs);
+System.out.println("📥 Parsed ClientResponse: ");
+System.out.println("  - IV: " + clientResp.getIv());
+System.out.println("  - Encrypted Nonce: " + clientResp.getEncryptedNonce());
 
-            // ✅ Verify it matches original Ns
-            if (!base64DecryptedNs.equals(base64Ns)) {
-                throw new SecurityException("❌ Client failed to prove knowledge of session key.");
-            }
+// 🔓 Decrypt enc(Ns)
+System.out.println("🔐 Decoding IV and Encrypted Nonce...");
+byte[] ivBytesResp = Base64.getDecoder().decode(clientResp.getIv());
+byte[] encNs = Base64.getDecoder().decode(clientResp.getEncryptedNonce());
 
-            System.out.println("✅ Client handshake verified!");
-            System.out.println("🤝 Session established with user: " + clientResp.getClientId());
+System.out.println("🔍 IV Length: " + ivBytesResp.length + " bytes");
+System.out.println("🔍 Encrypted Nonce Length: " + encNs.length + " bytes");
+
+Cipher decryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+GCMParameterSpec gcmSpec = new GCMParameterSpec(128, ivBytesResp);
+
+try {
+    System.out.println("🔐 Initializing decryption...");
+    decryptCipher.init(Cipher.DECRYPT_MODE, ks, gcmSpec);
+    
+    byte[] decryptedNs = decryptCipher.doFinal(encNs);
+    String base64DecryptedNs = Base64.getEncoder().encodeToString(decryptedNs);
+
+    System.out.println("🔓 Decrypted Ns: " + base64DecryptedNs);
+    System.out.println("🔓 Original Ns: " + base64Ns);
+
+    // ✅ Verify it matches original Ns
+    if (!base64DecryptedNs.equals(base64Ns)) {
+        System.err.println("❌ Client failed to prove knowledge of session key.");
+        throw new SecurityException("Client failed to prove knowledge of session key.");
+    }
+
+    System.out.println("✅ Client handshake verified!");
+    System.out.println("🤝 Session established with user: " + clientResp.getClientId());
+} catch (Exception decryptException) {
+    System.err.println("❌ Error during decryption: " + decryptException.getMessage());
+    decryptException.printStackTrace();
+}
 
             while (true) {
                 try {

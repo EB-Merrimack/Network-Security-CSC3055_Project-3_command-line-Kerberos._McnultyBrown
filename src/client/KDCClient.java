@@ -401,7 +401,7 @@ while (true) {
         payload.put("user", user);
         payload.put("service", service);
         payload.put("message", input);
-
+        
         String payloadStr = payload.getFormattedJSON();
         Cipher encryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
         encryptCipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, msgIv));
@@ -410,6 +410,7 @@ while (true) {
         JSONObject msgObj = new JSONObject();
         msgObj.put("iv", Base64.getEncoder().encodeToString(msgIv));
         msgObj.put("message", Base64.getEncoder().encodeToString(encryptedMessage));
+        System.out.println("Message JSON to send: " + msgObj);  // Indented JSON output
         serviceChannel.sendMessage(msgObj);
 
         // Receive encrypted response
