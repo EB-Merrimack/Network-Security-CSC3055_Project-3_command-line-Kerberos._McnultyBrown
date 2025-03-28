@@ -137,7 +137,7 @@ try {
                 try {
                     System.out.println("📥 Waiting for message from client...");
                     // Step 1: Receive encrypted message from client
-                    JSONObject incomingMsg = channel.receiveEchoMessage();
+                    JSONObject incomingMsg = channel.receiveEchoMessage(clientResp.getClientId());
                     System.out.println("📥 [SERVICE] Raw incoming message: " + incomingMsg.toString());
             
                     String ivBase64 = incomingMsg.getString("iv");

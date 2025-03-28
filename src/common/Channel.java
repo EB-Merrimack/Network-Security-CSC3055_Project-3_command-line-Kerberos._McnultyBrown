@@ -143,35 +143,26 @@ public class Channel implements JSONSerializable {
      * 
      * @param msgObj The JSON object that contains both the IV and encrypted message.
      */
-    public void sendechoMessage(JSONObject msgObj) {
-        sendMessage(msgObj);
-        System.out.println("Echo Message Sent: " + msgObj.getFormattedJSON());
-
+    public void sendechoMessage(String user, JSONObject msgObj) {
         try {
-            // Put the message in the shared queue
-            MessageQueue.putMessage(msgObj);
-            System.out.println("Message stored in the shared queue: " + msgObj.getFormattedJSON());
+            sendMessage(msgObj); // Send message over the network
+            System.out.println("Echo Message Sent for user " + user + ": " + msgObj.getFormattedJSON());
+    
+            MessageQueueManager.putMessage(user, msgObj); // Store message in the queue
         } catch (InterruptedException e) {
-            System.err.println("Error putting message in the queue: " + e.getMessage());
+            System.err.println("Failed to store message for user " + user);
+            Thread.currentThread().interrupt();
         }
     }
-
-    /**
-     * This method waits for a response to an echo message and returns it once received.
-     * It holds the message in the queue until the server calls for it.
-     * 
-     * @return The echoed message as a JSONObject.
-     * @throws IOException If the connection is closed by the peer.
-     */
-    public JSONObject receiveEchoMessage() throws IOException {
+    
+    public JSONObject receiveEchoMessage(String user) throws IOException {
         try {
-            System.out.println("Waiting for message from shared queue...");
-            // Take the message from the shared queue (this will block until a message is available)
-            JSONObject message = MessageQueue.takeMessage();
-            System.out.println("Message Retrieved from shared queue: " + message.getFormattedJSON());
+            JSONObject message = MessageQueueManager.takeMessage(user); // Wait for a message
+            System.out.println("Received Echo for user " + user + ": " + message.getFormattedJSON());
             return message;
         } catch (InterruptedException e) {
-            throw new IOException("Error receiving message from queue", e);
+            throw new IOException("Thread interrupted while waiting for message", e);
         }
     }
+    
 }
