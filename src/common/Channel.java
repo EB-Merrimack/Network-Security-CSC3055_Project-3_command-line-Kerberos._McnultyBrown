@@ -113,4 +113,21 @@ public class Channel implements JSONSerializable {
     public PrintWriter getWriter() {
         return writer; // Return the PrintWriter instance to allow other methods to use it
     }
+
+   
+    public InputStream getInputStream() {
+        try {
+            return socket.getInputStream(); // Return the input stream of the socket
+        } catch (IOException e) {
+            throw new UnsupportedOperationException("Error getting InputStream: " + e.getMessage());
+        }
+    }
+
+    public OutputStream getOutputStream() {
+        try {
+            return socket.getOutputStream(); // Return the output stream of the socket
+        } catch (IOException e) {
+            throw new UnsupportedOperationException("Error getting OutputStream: " + e.getMessage());
+        }
+    }
 }

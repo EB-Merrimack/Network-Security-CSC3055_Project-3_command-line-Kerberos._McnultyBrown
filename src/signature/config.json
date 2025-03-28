@@ -1,0 +1,8 @@
+{
+    "port": 5002,
+    "debug": false,
+    "service-name": "signatureservice",
+    "service-secret": "servicepass",
+    "signing-key": "<PASTE_BASE64_RSA_PRIVATE_KEY_HERE>"
+  }
+  

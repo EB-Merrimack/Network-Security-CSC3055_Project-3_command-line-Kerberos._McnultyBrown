@@ -34,6 +34,7 @@
     <jar jarfile="${dist}/kdcclient.jar" basedir="${build}">
       <exclude name="kdcd/"/>
       <exclude name="echoservice/"/>
+      <exclude name="signature/">
       <manifest>
         <attribute name="Main-Class" value="client/KDCClient" />
         <attribute name="Class-Path" value="bcprov.jar" />
@@ -45,6 +46,7 @@
     <jar jarfile="${dist}/kdcd.jar" basedir="${build}">
       <exclude name="client/"/>
       <exclude name="echoservice/"/>
+      <exclude name="signature/">
       <manifest>
         <attribute name="Main-Class" value="kdcd/KDCServer" />
         <attribute name="Class-Path" value="bcprov.jar" />
@@ -56,12 +58,26 @@
     <jar jarfile="${dist}/echoservice.jar" basedir="${build}">
       <exclude name="client/"/>
       <exclude name="kdcd/"/>
+      <exclude name="signature/">
       <manifest>
         <attribute name="Main-Class" value="echoservice/EchoService" />
         <attribute name="Class-Path" value="bcprov.jar" />
       </manifest>
       <zipfileset src="lib/merrimackutil.jar" excludes="META-INF/*.SF" />
     </jar>
+
+    <!-- Build the signature jar file-->
+      <jar jarfile="${dist}/signature.jar" basedir="${build}">
+      <exclude name="client/"/>
+      <exclude name="kdcd/"/>
+      <exclude name="echoservice/"/>
+      <manifest>
+        <attribute name="Main-Class" value="signature/SignatureService" />
+        <attribute name="Class-Path" value="bcprov.jar" />
+      </manifest>
+      <zipfileset src="lib/merrimackutil.jar" excludes="META-INF/*.SF" />
+    </jar>
+
   </target>
 
   <target name="clean"
