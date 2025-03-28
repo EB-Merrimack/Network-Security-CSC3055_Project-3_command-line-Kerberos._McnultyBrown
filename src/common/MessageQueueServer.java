@@ -7,6 +7,7 @@ import java.util.concurrent.*;
 
 public class MessageQueueServer {
     private static final int PORT = 5555;
+    private static final int REMOTE_PORT = 5001; // Remote server's port
     private static final ConcurrentHashMap<String, BlockingQueue<JSONObject>> userQueues = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
@@ -58,21 +59,47 @@ public class MessageQueueServer {
 
                     if ("PUT".equals(type)) {
                         JSONObject message = request.getObject("message");
-                        putMessage(user, message); // Store message in the queue for the user
-                        writer.println("{\"status\":\"Message stored\"}");
+                        // Send message to remote server
+                        JSONObject response = sendMessageToRemoteServer(message);
+                        writer.println(response.getFormattedJSON());  // Send the response back to the original client
                     } else if ("TAKE".equals(type)) {
                         JSONObject message = takeMessage(user); // Take message from the queue for the user
-                        writer.println(message.getFormattedJSON()); // Send the message back
+                        writer.println(message.getFormattedJSON()); // Send message back
                     }
                 }
             } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             }
         }
+
+        // Method to send the message to the remote server and receive a response
+        private JSONObject sendMessageToRemoteServer(JSONObject message) {
+            try (Socket remoteSocket = new Socket("localhost", REMOTE_PORT); // Connect to remote server
+                 PrintWriter out = new PrintWriter(remoteSocket.getOutputStream(), true);
+                 BufferedReader in = new BufferedReader(new InputStreamReader(remoteSocket.getInputStream()))) {
+
+                // Send the message to the remote server
+                out.println(message.getFormattedJSON());
+
+                // Wait for the response from the remote server
+                String responseLine;
+                StringBuilder response = new StringBuilder();
+                while ((responseLine = in.readLine()) != null) {
+                    response.append(responseLine);
+                }
+
+                // Parse the response from the remote server into a JSONObject
+                return merrimackutil.json.JsonIO.readObject(response.toString());
+            } catch (IOException e) {
+                e.printStackTrace();
+                return (JSONObject) new JSONObject().put("error", "Failed to communicate with the remote server");
+            }
+        }
     }
 
+    // This method is now calling the main method to start the server
     public static void startMessageServer() {
         String[] args = {};  // Empty arguments array, as the main method doesn't use them
         main(args);  // Call the main method to start the server
-  }
+    }
 }
