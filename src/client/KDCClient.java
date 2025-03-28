@@ -50,7 +50,27 @@ public class KDCClient {
         // Exit the program
         System.exit(1);
     }
+    public static String promptForUsername(String msg) {
+        String usrnm;
+        Console cons = System.console();
 
+        do {
+            usrnm = new String(cons.readLine(msg + ": "));
+        } while (usrnm.isEmpty());
+
+        return usrnm;
+    }
+
+    public static String promptForPassword(String msg) {
+        String passwd;
+        Console cons = System.console();
+
+        do {
+            passwd = new String(cons.readPassword(msg + ": "));
+        } while (passwd.isEmpty());
+
+        return passwd;
+    }
     
     public static void main(String[] args) {
         String hostsFile = "host.json";
