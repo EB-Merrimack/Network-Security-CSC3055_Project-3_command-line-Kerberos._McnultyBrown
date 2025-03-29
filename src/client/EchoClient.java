@@ -1,65 +1,46 @@
 package client;
 
-
-/*
- *   Copyright (C) 2022 -- 2023  Zachary A. Kissel
- *
- *   This program is free software: you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation, either version 3 of the License, or
- *   (at your option) any later version.
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
- *
- *   You should have received a copy of the GNU General Public License
- *   along with this program.  If not, see <https://www.gnu.org/licenses/>.
- */
+import merrimackutil.json.types.JSONObject;
 import java.net.Socket;
-import java.net.UnknownHostException;
-import java.util.Scanner;
 import java.io.PrintWriter;
-import java.io.IOException;
+import java.util.Scanner;
+
+import common.Channel;
 
 public class EchoClient {
-  public static void main (String[] args)
-  {
-    Scanner scan = new Scanner(System.in);
-    Socket sock;
-    Scanner recv = null;
-    PrintWriter send = null;
+    public static JSONObject sendMessage(JSONObject msgObj) {
+        System.out.println("EchoClient sending JSON message: " + msgObj.toString());
+        try (Socket sock = new Socket("127.0.0.1", 5000);
+             PrintWriter send = new PrintWriter(sock.getOutputStream(), true);
+             Scanner recv = new Scanner(sock.getInputStream())) {
 
-    try
-    {
-      // Set up a connection to the echo server running on the same machine.
-      sock = new Socket("127.0.0.1", 5000);
+            // Send the JSON message
+            send.println(msgObj.toString());
 
+            // Receive the response
+            if (recv.hasNextLine()) {
+                String recvMsg = recv.nextLine();
+                System.out.println("Server Said: " + recvMsg);
 
-      // Set up the streams for the socket.
-      recv = new Scanner(sock.getInputStream());
-      send = new PrintWriter(sock.getOutputStream(), true);
+                // Convert received string to uppercase
+                String upperCaseResponse = recvMsg.toUpperCase();
+
+                // Create a new JSONObject with the uppercase response
+                JSONObject responseObj = new JSONObject();
+                responseObj.put("response", upperCaseResponse);
+
+                // Send to receiveMessage() for handling
+                Channel.receiveEchoMessage(responseObj);
+
+                return responseObj;
+            } else {
+                System.err.println("❌ No response received from server.");
+                return null;
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
-    catch(UnknownHostException ex)
-    {
-      System.out.println("Host is unknown.");
-      return;
-    }
-    catch(IOException ioe)
-    {
-      ioe.printStackTrace();
-    }
-
-    // Prompt the user for a string to send.
-    System.out.print("Write a short message: ");
-    String msg = scan.nextLine();
-
-    // Send the message to the server.
-    send.println(msg);
-
-    // Echo the response to the screen.
-    String recvMsg = recv.nextLine();
-    System.out.println("Server Said: " + recvMsg);
-  }
 }

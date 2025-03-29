@@ -2,6 +2,8 @@ package common;
 
 import java.io.*;
 import java.net.Socket;
+
+import client.EchoClient;
 import merrimackutil.json.JsonIO;
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
@@ -144,26 +146,20 @@ public class Channel implements JSONSerializable {
      * @param msgObj The JSON object that contains both the IV and encrypted message.
  * @throws Exception 
      */
-    public void sendechoMessage(String user, JSONObject msgObj) throws Exception {
-        try {
-            sendMessage(msgObj); // Send message over the network
-            System.out.println("Echo Message Sent for user " + user + ": " + msgObj.getFormattedJSON());
+   public void sendechoMessage(String user, JSONObject msgObj) throws Exception {
+        // Send the message to EchoClient
+        client.EchoClient.sendMessage(msgObj);
+
+        System.out.println("Echo Message Sent for user " + user + ": " + msgObj);
+
     
-            MessageQueueManager.putMessage(user, msgObj); // Store message in the queue
-        } catch (InterruptedException e) {
-            System.err.println("Failed to store message for user " + user);
-            Thread.currentThread().interrupt();
-        }
-    }
+}
     
-    public JSONObject receiveEchoMessage(String user) throws Exception {
-        try {
-            JSONObject message = MessageQueueManager.takeMessage(user); // Wait for a message
-            System.out.println("Received Echo for user " + user + ": " + message.getFormattedJSON());
-            return message;
-        } catch (InterruptedException e) {
-            throw new IOException("Thread interrupted while waiting for message", e);
-        }
+    public static void receiveEchoMessage(JSONObject responseMsg) {
+        System.out.println("📥 Received Echo Response: " + responseMsg);
+
+        // Send the response to the client
+        EchoServiceHandler.sendToClient(responseMsg);
     }
     
 }
