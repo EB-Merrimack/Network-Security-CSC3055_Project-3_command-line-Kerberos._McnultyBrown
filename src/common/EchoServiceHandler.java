@@ -133,100 +133,93 @@ try {
     decryptException.printStackTrace();
 }
 
-            while (true) {
-                try {
-                    System.out.println("📥 Waiting for message from client...");
-                    // Step 1: Receive encrypted message from client
-                    JSONObject incomingMsg = channel.receiveEchoMessage(clientResp.getClientId());
-                    System.out.println("📥 [SERVICE] Raw incoming message: " + incomingMsg.toString());
-            
-                    String ivBase64 = incomingMsg.getString("iv");
-                    String cipherBase64 = incomingMsg.getString("message");
-            
-                    byte[] msgIv = Base64.getDecoder().decode(ivBase64);
-                    byte[] ciphertext = Base64.getDecoder().decode(cipherBase64);
-            
-                    System.out.println("🔍 [DEBUG] Decoded IV: " + Arrays.toString(msgIv));
-                    System.out.println("🔍 [DEBUG] Decoded Ciphertext Length: " + ciphertext.length);
-            
-                    // Step 2: Decrypt with session key
-                    try {
-                        Cipher decryptMsgCipher = Cipher.getInstance("AES/GCM/NoPadding");
-                        GCMParameterSpec decryptSpec = new GCMParameterSpec(128, msgIv);
-                        decryptCipher.init(Cipher.DECRYPT_MODE, ks, decryptSpec);
-                        byte[] plainBytes = decryptMsgCipher.doFinal(ciphertext);
-                        String decryptedStr = new String(plainBytes, StandardCharsets.UTF_8);
-            
-                        System.out.println("🔓 [DEBUG] Decrypted JSON: " + decryptedStr);
-            
-                        // Step 3: Parse decrypted JSON message
-                        JSONObject payload = JsonIO.readObject(decryptedStr);
-                        String receivedNonce = payload.getString("nonce");
-                        String sender = payload.getString("user");
-                        String targetService = payload.getString("service");
-                        String message = payload.getString("message");
-            
-                        System.out.println("🔍 [DEBUG] Parsed JSON - Nonce: " + receivedNonce);
-                        System.out.println("🔍 [DEBUG] Parsed JSON - Sender: " + sender);
-                        System.out.println("🔍 [DEBUG] Parsed JSON - Target Service: " + targetService);
-                        System.out.println("🔍 [DEBUG] Parsed JSON - Message: " + message);
-            
-                        if (!targetService.equals(config.serviceName)) {
-                            System.err.println("❌ [SERVICE] Message intended for '" + targetService + "', but this is '" + config.serviceName + "'");
-                            channel.close();
-                            break;
-                        }
-            
-                        // Step 4: Validate nonce
-                        byte[] nonceBytes = Base64.getDecoder().decode(receivedNonce);
-            
-                        if (nonceCache.containsNonce(nonceBytes)) {
-                            System.err.println("⚠️ [SERVICE] Replay detected! Nonce has already been used.");
-                            channel.close();
-                            break;
-                        }
-            
-                        // ✅ Add nonce to cache
-                        nonceCache.addNonce(nonceBytes);
-                        System.out.println("✅ [SERVICE] Nonce accepted and stored.");
-            
-                        System.out.println("📥 [SERVICE] Received from " + sender + ": " + message);
-            
-                        // Step 5: Process message
-                        String responseText = message.toUpperCase();
-            
-                        // Step 6: Encrypt response
-                        byte[] responseIv = new byte[12];
-                        new SecureRandom().nextBytes(responseIv);
-                        Cipher encryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
-                        encryptCipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, responseIv));
-                        byte[] encryptedResponse = encryptCipher.doFinal(responseText.getBytes(StandardCharsets.UTF_8));
-            
-                        System.out.println("🔐 [DEBUG] Response IV: " + Arrays.toString(responseIv));
-                        System.out.println("🔐 [DEBUG] Encrypted Response Length: " + encryptedResponse.length);
-            
-                        // Step 7: Send encrypted response
-                        JSONObject responseJson = new JSONObject();
-                        responseJson.put("iv", Base64.getEncoder().encodeToString(responseIv));
-                        responseJson.put("message", Base64.getEncoder().encodeToString(encryptedResponse));
-                        channel.sendMessage(responseJson);
-            
-                        System.out.println("📤 [SERVICE] Responded with: " + responseText);
-            
-                    } catch (Exception decryptException) {
-                        System.err.println("❌ [SERVICE] Decryption error: " + decryptException.getMessage());
-                        decryptException.printStackTrace();
-                        channel.close();
-                        break;  // Exit loop on decryption failure
-                    }
-            
-                } catch (Exception e) {
-                    System.err.println("❌ [SERVICE] Error in communication loop: " + e.getMessage());
-                    e.printStackTrace();
-                    channel.close();
-                    break;  // Exit loop on communication failure
-                }
-            }
+while (true) {
+    try {
+        System.out.println("📥 Waiting for message from client...");
+        // Read the raw message directly from the socket
+        JSONObject incomingMsg = channel.receiveMessage();
+        System.out.println("📥 [SERVICE] Raw incoming message: " + incomingMsg.toString());
+
+        // Get the IV and the encrypted message from the JSON received
+        String ivBase64 = incomingMsg.getString("iv");
+        String cipherBase64 = incomingMsg.getString("message");
+        
+        // Decode the IV
+        byte[] msgIv = Base64.getDecoder().decode(ivBase64);
+        // Decode the ciphertext
+        byte[] ciphertext = Base64.getDecoder().decode(cipherBase64);
+        
+        System.out.println("🔍 [DEBUG] Decoded IV: " + Arrays.toString(msgIv));
+        System.out.println("🔍 [DEBUG] Decoded Ciphertext Length: " + ciphertext.length);
+        
+        // Decrypt the message using the session key
+        Cipher decryptMsgCipher = Cipher.getInstance("AES/GCM/NoPadding");
+        GCMParameterSpec decryptSpec = new GCMParameterSpec(128, msgIv);
+        decryptMsgCipher.init(Cipher.DECRYPT_MODE, ks, decryptSpec);
+        byte[] plainBytes = decryptMsgCipher.doFinal(ciphertext);
+        String decryptedStr = new String(plainBytes, StandardCharsets.UTF_8);
+        
+        System.out.println("🔓 [DEBUG] Decrypted plain message: " + decryptedStr);
+        
+        // If the decrypted string is a JSON string, parse it:
+        JSONObject payload = JsonIO.readObject(decryptedStr);
+        String receivedNonce = payload.getString("nonce");
+        String sender = payload.getString("user");
+        String targetService = payload.getString("service");
+        String message = payload.getString("message");
+        
+        System.out.println("🔍 [DEBUG] Parsed JSON - Nonce: " + receivedNonce);
+        System.out.println("🔍 [DEBUG] Parsed JSON - Sender: " + sender);
+        System.out.println("🔍 [DEBUG] Parsed JSON - Target Service: " + targetService);
+        System.out.println("🔍 [DEBUG] Parsed JSON - Message: " + message);
+        
+        if (!targetService.equals(config.serviceName)) {
+            System.err.println("❌ [SERVICE] Message intended for '" + targetService + "', but this is '" + config.serviceName + "'");
+            channel.close();
+            break;
+        }
+        
+        // Validate nonce
+        byte[] nonceBytes = Base64.getDecoder().decode(receivedNonce);
+        if (nonceCache.containsNonce(nonceBytes)) {
+            System.err.println("⚠️ [SERVICE] Replay detected! Nonce has already been used.");
+            channel.close();
+            break;
+        }
+        nonceCache.addNonce(nonceBytes);
+        System.out.println("✅ [SERVICE] Nonce accepted and stored.");
+        
+        System.out.println("📥 [SERVICE] Received from " + sender + ": " + message);
+        
+        // Process the message (for echo, we convert to uppercase)
+        String responseText = message.toUpperCase();
+        
+        // Encrypt the response using the session key
+        byte[] responseIv = new byte[12];
+        new SecureRandom().nextBytes(responseIv);
+        Cipher encryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+        encryptCipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, responseIv));
+        byte[] encryptedResponse = encryptCipher.doFinal(responseText.getBytes(StandardCharsets.UTF_8));
+        
+        System.out.println("🔐 [DEBUG] Response IV: " + Arrays.toString(responseIv));
+        System.out.println("🔐 [DEBUG] Encrypted Response Length: " + encryptedResponse.length);
+        
+        // Build the response JSON object
+        JSONObject responseJson = new JSONObject();
+        responseJson.put("iv", Base64.getEncoder().encodeToString(responseIv));
+        responseJson.put("message", Base64.getEncoder().encodeToString(encryptedResponse));
+        
+        // Send the encrypted echo response back to the client
+        channel.sendMessage(responseJson);
+        System.out.println("📤 [SERVICE] Responded with: " + responseText);
+        
+    } catch (Exception e) {
+        System.err.println("❌ [SERVICE] Error in communication loop: " + e.getMessage());
+        e.printStackTrace();
+        channel.close();
+        break;  // Exit loop on communication failure
+    }
+}
             
             System.out.println("👋 [SERVICE] Goodbye!");            
         }
