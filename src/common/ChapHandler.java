@@ -131,8 +131,7 @@ public class ChapHandler {
             System.out.println(responseMsg.toJSONType().getFormattedJSON());
 
             channel.sendMessage(responseMsg);
-            channel.close();
-
+            
         } catch (Exception e) {
             System.err.println("Error in ChapHandler: " + e.getMessage());
             e.printStackTrace();  

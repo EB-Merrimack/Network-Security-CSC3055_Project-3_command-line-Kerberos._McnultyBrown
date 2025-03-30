@@ -2,6 +2,8 @@ package common;
 
 import java.io.*;
 import java.net.Socket;
+
+import client.EchoClient;
 import merrimackutil.json.JsonIO;
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
@@ -11,6 +13,9 @@ public class Channel implements JSONSerializable {
     private final Socket socket;
     private final BufferedReader reader;
     private final PrintWriter writer;
+    private JSONObject echoedMessage = null; // Holds the echoed message
+    private boolean messageAvailable = false; // Flag to indicate when a message is available
+
 
     public Channel(Socket socket) throws IOException {
         this.socket = socket;
@@ -19,8 +24,8 @@ public class Channel implements JSONSerializable {
     }
 
     /**
-     * takes a jason object and makes it serializable to be able to be writen 
-     * through the send message method
+     * Takes a JSON object and makes it serializable to be able to be written 
+     * through the send message method.
      * 
      * @param message The message to send, as a JSONObject.
      */
@@ -31,7 +36,7 @@ public class Channel implements JSONSerializable {
 
     /**
      * Send a message over the channel to the socket. 
-     * using write serialized object
+     * Using write serialized object.
      * 
      * @param message The message to send, as a JSONSerializable object.
      */
@@ -51,15 +56,37 @@ public class Channel implements JSONSerializable {
      * @return The received message as a JSONObject.
      * @throws IOException If the connection is closed by the peer.
      */
-
     public JSONObject receiveMessage() throws IOException {
-        String line = reader.readLine();
-        if (line == null) {
-            throw new IOException("Connection closed by peer");
+        StringBuilder messageBuilder = new StringBuilder();
+        String line;
+    
+        // Read lines until we get a complete message (i.e., valid JSON)
+        while ((line = reader.readLine()) != null) {
+            // Check if the connection is closed
+            if (line.isEmpty()) {
+                System.out.println("Debug: Connection closed by peer.");
+                throw new IOException("Connection closed by peer");
+            }
+    
+            // Accumulate lines to form the full message
+            messageBuilder.append(line.trim());
+    
+            // Check if the accumulated message is a valid JSON object
+            try {
+                JSONObject jsonObject = JsonIO.readObject(messageBuilder.toString());
+                System.out.println("Debug: Successfully deserialized into JSONObject: " + jsonObject);
+                return jsonObject;  // Successfully parsed the complete JSON object
+            } catch (Exception e) {
+                // Log that parsing failed and continue reading more lines
+                System.out.println("Debug: Incomplete message, continue reading...");
+            }
         }
-        System.out.println("Received: " + line);
-        return JsonIO.readObject(line); // Deserialize received string into JSONObject
+    
+        // If we exit the loop and don't have a valid JSON object, log and return null
+        System.err.println("Error: Failed to receive a complete JSON message.");
+        return null;
     }
+    
 
     /**
      * Close the channel and associated socket.
@@ -96,15 +123,14 @@ public class Channel implements JSONSerializable {
         }
     }
 
-/**
- * Serialize the Channel to a JSONType.
- * 
- * The serialized JSONType is an empty JSONObject, as the Channel 
- * currently does not contain serializable fields.
- * 
- * @return The JSONType containing the serialized Channel.
- */
-
+    /**
+     * Serialize the Channel to a JSONType.
+     * 
+     * The serialized JSONType is an empty JSONObject, as the Channel 
+     * currently does not contain serializable fields.
+     * 
+     * @return The JSONType containing the serialized Channel.
+     */
     @Override
     public JSONType toJSONType() {
         return new JSONObject();
@@ -114,7 +140,6 @@ public class Channel implements JSONSerializable {
         return writer; // Return the PrintWriter instance to allow other methods to use it
     }
 
-   
     public InputStream getInputStream() {
         try {
             return socket.getInputStream(); // Return the input stream of the socket
@@ -130,4 +155,22 @@ public class Channel implements JSONSerializable {
             throw new UnsupportedOperationException("Error getting OutputStream: " + e.getMessage());
         }
     }
+
+    /**
+     * This method sends an echo message, containing both the IV and message.
+     * The method assumes that the message and IV are properly formatted in JSON.
+     * 
+     * @param iv The Initialization Vector (IV) for encryption.
+     * @param message The message to send, typically a JSON object.
+     */
+   /**
+     * Sends an echo message containing the IV and the encrypted message.
+     * 
+     * @param msgObj The JSON object that contains both the IV and encrypted message.
+ * @throws Exception 
+     */
+
+    
+   
+    
 }

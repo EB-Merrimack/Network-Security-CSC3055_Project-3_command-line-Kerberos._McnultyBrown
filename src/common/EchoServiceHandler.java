@@ -6,11 +6,15 @@ import merrimackutil.util.NonceCache;
 import common.service.ClientHello;
 import common.service.ClientResponse;
 import common.service.HandshakeResponse;
+import common.service.Message;
 import echoservice.Config;
 
 import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+
+import java.util.Arrays;
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -85,114 +89,116 @@ public class EchoServiceHandler implements Runnable {
             HandshakeResponse response = new HandshakeResponse(base64Ns, ticket.getService(), ivOut, encNc);
             channel.sendMessage(response);
 
-            // 🧾 Step 3: Receive ClientResponse
-            System.out.println("📥 Waiting for ClientResponse...");
-            JSONObject clientRespJson = channel.receiveMessage();
-            ClientResponse clientResp = new ClientResponse("", "", "", "");
-            clientResp.deserialize(clientRespJson);
+          // 🧾 Step 3: Receive ClientResponse
+System.out.println("📥 Waiting for ClientResponse..."+channel);
+JSONObject clientRespJson = channel.receiveMessage();
+System.out.println("📥 Received ClientResponse JSON: " + clientRespJson.toString());
 
-            // 🔓 Decrypt enc(Ns)
-            System.out.println("🔐 Decrypting client's proof (enc(Ns))...");
-            byte[] ivBytesResp = Base64.getDecoder().decode(clientResp.getIv());
-            byte[] encNs = Base64.getDecoder().decode(clientResp.getEncryptedNonce());
+ClientResponse clientResp = new ClientResponse("", "", "", "");
+clientResp.deserialize(clientRespJson);
 
-            Cipher decryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
-            decryptCipher.init(Cipher.DECRYPT_MODE, ks, new GCMParameterSpec(128, ivBytesResp));
-            byte[] decryptedNs = decryptCipher.doFinal(encNs);
-            String base64DecryptedNs = Base64.getEncoder().encodeToString(decryptedNs);
+System.out.println("📥 Parsed ClientResponse: ");
+System.out.println("  - IV: " + clientResp.getIv());
+System.out.println("  - Encrypted Nonce: " + clientResp.getEncryptedNonce());
 
-            // ✅ Verify it matches original Ns
-            if (!base64DecryptedNs.equals(base64Ns)) {
-                throw new SecurityException("❌ Client failed to prove knowledge of session key.");
-            }
+// 🔓 Decrypt enc(Ns)
+System.out.println("🔐 Decoding IV and Encrypted Nonce...");
+byte[] ivBytesResp = Base64.getDecoder().decode(clientResp.getIv());
+byte[] encNs = Base64.getDecoder().decode(clientResp.getEncryptedNonce());
 
-            System.out.println("✅ Client handshake verified!");
-            System.out.println("🤝 Session established with user: " + clientResp.getClientId());
+System.out.println("🔍 IV Length: " + ivBytesResp.length + " bytes");
+System.out.println("🔍 Encrypted Nonce Length: " + encNs.length + " bytes");
 
-            while (true) {
-                try {
-                    // Step 1: Receive encrypted message from client
-                    JSONObject incomingMsg = channel.receiveMessage();
-                    String ivBase64 = incomingMsg.getString("iv");
-                    String cipherBase64 = incomingMsg.getString("message");
+Cipher decryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
+GCMParameterSpec gcmSpec = new GCMParameterSpec(128, ivBytesResp);
 
-                    byte[] msgIv = Base64.getDecoder().decode(ivBase64);
-                    byte[] ciphertext = Base64.getDecoder().decode(cipherBase64);
+try {
+    System.out.println("🔐 Initializing decryption...");
+    decryptCipher.init(Cipher.DECRYPT_MODE, ks, gcmSpec);
+    
+    byte[] decryptedNs = decryptCipher.doFinal(encNs);
+    String base64DecryptedNs = Base64.getEncoder().encodeToString(decryptedNs);
 
-                    // Step 2: Decrypt with session key
-                    Cipher decryptMsgCipher = Cipher.getInstance("AES/GCM/NoPadding");
-                    GCMParameterSpec decryptSpec = new GCMParameterSpec(128, msgIv);
-                    decryptCipher.init(Cipher.DECRYPT_MODE, ks, decryptSpec);
-                    byte[] plainBytes = decryptMsgCipher.doFinal(ciphertext);
-                    String decryptedStr = new String(plainBytes, StandardCharsets.UTF_8);
+    System.out.println("🔓 Decrypted Ns: " + base64DecryptedNs);
+    System.out.println("🔓 Original Ns: " + base64Ns);
 
-                    // Step 3: Parse decrypted JSON message
-                    JSONObject payload = JsonIO.readObject(decryptedStr);
-                    String receivedNonce = payload.getString("nonce");
-                    String sender = payload.getString("user");
-                    String targetService = payload.getString("service");
-                    String message = payload.getString("message");
-
-
-                    if (!targetService.equals(config.serviceName)) {
-                        System.err.println("❌ [SERVICE] Message intended for service '" + targetService + "', but this is '" + config.serviceName + "'");
-                        channel.close();
-                        break;
-                    }
-                    
-                    // Step 4: Validate nonce
-                    byte[] nonceBytes = Base64.getDecoder().decode(receivedNonce);
-
-                    if (nonceCache.containsNonce(nonceBytes)) {
-                        System.err.println("⚠️ [SERVICE] Replay detected: nonce reused!");
-                        channel.close();
-                        break;
-                    }
-
-                    // ✅ Add nonce to cache
-                    nonceCache.addNonce(nonceBytes);
-
-                    System.out.println("📥 [SERVICE] Received from " + sender + ": " + message);
-
-                    // Step 5: Process message
-                    String responseText = message.toUpperCase();
-
-                    // Step 6: Encrypt response
-                    byte[] responseIv = new byte[12];
-                    new SecureRandom().nextBytes(responseIv);
-                    Cipher encryptCipher = Cipher.getInstance("AES/GCM/NoPadding");
-                    encryptCipher.init(Cipher.ENCRYPT_MODE, ks, new GCMParameterSpec(128, responseIv));
-                    byte[] encryptedResponse = encryptCipher.doFinal(responseText.getBytes(StandardCharsets.UTF_8));
-
-                    // Step 7: Send encrypted response
-                    JSONObject responseJson = new JSONObject();
-                    responseJson.put("iv", Base64.getEncoder().encodeToString(responseIv));
-                    responseJson.put("message", Base64.getEncoder().encodeToString(encryptedResponse));
-                    channel.sendMessage(responseJson);
-
-                    System.out.println("📤 [SERVICE] Responded with: " + responseText);
-
-                } catch (Exception e) {
-                    System.err.println("❌ [SERVICE] Error in communication loop: " + e.getMessage());
-                    e.printStackTrace();
-                    channel.close();
-                    break;
-                }
-            }
-
-        } catch (Exception e) {
-            System.err.println("❌ Error in EchoServiceHandler: " + e.getMessage());
-            e.printStackTrace();
-            channel.close();
-        }
+    // ✅ Verify it matches original Ns
+    if (!base64DecryptedNs.equals(base64Ns)) {
+        System.err.println("❌ Client failed to prove knowledge of session key.");
+        throw new SecurityException("Client failed to prove knowledge of session key.");
     }
 
-    private String combineIVandCipher(String iv, String cipherText) {
-        byte[] ivBytes = Base64.getDecoder().decode(iv);
-        byte[] cipherBytes = Base64.getDecoder().decode(cipherText);
-        byte[] combined = new byte[ivBytes.length + cipherBytes.length];
-        System.arraycopy(ivBytes, 0, combined, 0, ivBytes.length);
-        System.arraycopy(cipherBytes, 0, combined, ivBytes.length, cipherBytes.length);
-        return Base64.getEncoder().encodeToString(combined);
-    }
+    System.out.println("✅ Client handshake verified!");
+    System.out.println("🤝 Session established with user: " + clientResp.getClientId());
+
+      System.out.println("📥 Waiting for ClientResponse..."+channel);
+                    JSONObject echo = channel.receiveMessage();
+                    System.out.println("📥 Received ClientResponse JSON: " + echo.toString());
+                    Message echResponse = new Message("", "");
+                    echResponse.deserialize(echo);
+                    System.out.println("📥 Received ClientResponse JSON: " + echo.toString());
+
+
+   String encryptedMessage = echResponse.getMessage();
+   byte[] encryptedMessageBytes = Base64.getDecoder().decode(encryptedMessage);
+   String ivMessage = echResponse.getIv();
+   byte[] ivMessageBytes = Base64.getDecoder().decode(ivMessage);
+
+   // Step 5: Decrypt the message from the client
+   System.out.println("🔐 Decrypting the client message...");
+   Cipher decryptMessageCipher = Cipher.getInstance("AES/GCM/NoPadding");
+   GCMParameterSpec messageSpec = new GCMParameterSpec(128, ivMessageBytes);
+
+   decryptMessageCipher.init(Cipher.DECRYPT_MODE, ks, messageSpec);
+   byte[] decryptedMessageBytes = decryptMessageCipher.doFinal(encryptedMessageBytes);
+   String decryptedMessage = new String(decryptedMessageBytes, StandardCharsets.UTF_8);
+   System.out.println("🔓 Decrypted Message: " + decryptedMessage);
+
+   // Step 6: Convert the message to uppercase
+   String upperCaseMessage = decryptedMessage.toUpperCase();
+   System.out.println("🆙 Uppercased Message: " + upperCaseMessage);
+
+   // Step 7: Encrypt the uppercase message before sending back
+   byte[] encryptedUppercaseMessage = encryptMessage(upperCaseMessage, ivMessageBytes,ks);
+
+   // Step 8: Prepare response JSON and send it back to the client
+   JSONObject echoResponseJson = new JSONObject();
+   echoResponseJson.put("iv", Base64.getEncoder().encodeToString(ivMessageBytes));
+   echoResponseJson.put("message", Base64.getEncoder().encodeToString(encryptedUppercaseMessage));
+
+   System.out.println("📤 Sending Echo Response: " + echoResponseJson.toString());
+   channel.sendMessage(echoResponseJson);
+
+} catch (Exception e) {
+    System.err.println("❌ Error decrypting message: " + e.getMessage());
+    throw new SecurityException("Error decrypting message: " + e.getMessage());
+}
+
+} catch (SecurityException e) {
+System.err.println("❌ Security Exception: " + e.getMessage());
+throw e; // Re-throw to ensure the exception is properly handled
+} catch (Exception e) {
+System.err.println("❌ General Exception: " + e.getMessage());
+throw new RuntimeException("An error occurred during the handshake process.", e);
+}
+}
+
+
+// Combine IV and cipher text for decryption
+private String combineIVandCipher(String iv, String cipherText) {
+byte[] ivBytes = Base64.getDecoder().decode(iv);
+byte[] cipherBytes = Base64.getDecoder().decode(cipherText);
+byte[] combined = new byte[ivBytes.length + cipherBytes.length];
+System.arraycopy(ivBytes, 0, combined, 0, ivBytes.length);
+System.arraycopy(cipherBytes, 0, combined, ivBytes.length, cipherBytes.length);
+return Base64.getEncoder().encodeToString(combined);
+}
+
+// Encrypt the message using AES-GCM
+private byte[] encryptMessage(String message, byte[] iv, SecretKeySpec ks) throws Exception {
+Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+cipher.init(Cipher.ENCRYPT_MODE, ks, spec);
+return cipher.doFinal(message.getBytes(StandardCharsets.UTF_8));
+}
 }
