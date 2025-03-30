@@ -58,12 +58,29 @@ public class Channel implements JSONSerializable {
      */
     public JSONObject receiveMessage() throws IOException {
         String line = reader.readLine();
+        
+        // Check if the line received is null (i.e., connection closed)
         if (line == null) {
+            System.out.println("Debug: No data received. Connection closed by peer.");
             throw new IOException("Connection closed by peer");
         }
-        System.out.println("Received: " + line);
-        return JsonIO.readObject(line); // Deserialize received string into JSONObject
+    
+        // Print the raw received line for further debugging
+        System.out.println("Debug: Raw received data: " + line);
+    
+        // Try to read and parse the line into a JSONObject
+        JSONObject jsonObject = null;
+        try {
+            jsonObject = JsonIO.readObject(line); // Deserialize received string into JSONObject
+            System.out.println("Debug: Successfully deserialized into JSONObject: " + jsonObject);
+        } catch (Exception e) {
+            System.err.println("Error: Failed to deserialize received line into JSONObject.");
+            e.printStackTrace();
+        }
+        
+        return jsonObject;
     }
+    
 
     /**
      * Close the channel and associated socket.

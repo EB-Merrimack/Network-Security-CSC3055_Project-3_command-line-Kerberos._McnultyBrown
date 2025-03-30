@@ -408,8 +408,8 @@ Scanner sc = new Scanner(System.in);
     byte[] encryptedMessage = encryptCipher.doFinal(payloadStr.getBytes(StandardCharsets.UTF_8));
 
     JSONObject msgObj = new JSONObject();
-    msgObj.put("iv", Base64.getEncoder().encodeToString(msgIv));
     msgObj.put("message", Base64.getEncoder().encodeToString(encryptedMessage));
+    msgObj.put("iv", Base64.getEncoder().encodeToString(msgIv));
     System.out.println("Message JSON to send: " + msgObj);  // Indented JSON output
 
     // Send the encrypted message to EchoService
