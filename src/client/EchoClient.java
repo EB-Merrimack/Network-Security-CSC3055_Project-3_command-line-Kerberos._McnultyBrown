@@ -29,8 +29,7 @@ public class EchoClient {
                 JSONObject responseObj = new JSONObject();
                 responseObj.put("response", upperCaseResponse);
 
-                // Send to receiveMessage() for handling
-                Channel.receiveEchoMessage(responseObj);
+             
 
                 return responseObj;
             } else {

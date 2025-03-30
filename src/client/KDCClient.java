@@ -414,7 +414,7 @@ Scanner sc = new Scanner(System.in);
 
     // Send the encrypted message to EchoService
     serviceChannel.sendMessage(msgObj);
-    System.out.println("📤 Sent encrypted message");
+    System.out.println("📤 Sent encrypted message to service"+service +"and service chanel"+serviceChannel);
     // Receive encrypted response
     JSONObject respJson = serviceChannel.receiveMessage();
     byte[] respIv = Base64.getDecoder().decode(respJson.getString("iv"));

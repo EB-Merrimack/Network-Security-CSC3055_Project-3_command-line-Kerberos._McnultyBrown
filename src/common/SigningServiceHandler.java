@@ -59,10 +59,12 @@ public class SigningServiceHandler implements Runnable {
 
             while (true) {
                 try {
-                    // Step 1: Receive encrypted message from client
-                    JSONObject incomingMsg = channel.receiveMessage();
-                    String ivBase64 = incomingMsg.getString("iv");
-                    String cipherBase64 = incomingMsg.getString("message");
+                    System.out.println("📥 Waiting for ClientResponse...");
+                    JSONObject echo = channel.receiveMessage();
+                    ClientResponse echResponse = new ClientResponse("", "", "", "");
+                    clientResp.deserialize(clientRespJson);
+
+                    // 🔐 Session setup (similar to EchoServiceHandler, without nonce handling)                    
 
                     byte[] msgIv = Base64.getDecoder().decode(ivBase64);
                     byte[] ciphertext = Base64.getDecoder().decode(cipherBase64);

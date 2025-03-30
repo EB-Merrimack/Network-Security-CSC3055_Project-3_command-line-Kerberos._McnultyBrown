@@ -146,20 +146,8 @@ public class Channel implements JSONSerializable {
      * @param msgObj The JSON object that contains both the IV and encrypted message.
  * @throws Exception 
      */
-   public void sendechoMessage(String user, JSONObject msgObj) throws Exception {
-        // Send the message to EchoClient
-        client.EchoClient.sendMessage(msgObj);
-
-        System.out.println("Echo Message Sent for user " + user + ": " + msgObj);
 
     
-}
-    
-    public static void receiveEchoMessage(JSONObject responseMsg) {
-        System.out.println("📥 Received Echo Response: " + responseMsg);
-
-        // Send the response to the client
-        EchoServiceHandler.sendToClient(responseMsg);
-    }
+   
     
 }

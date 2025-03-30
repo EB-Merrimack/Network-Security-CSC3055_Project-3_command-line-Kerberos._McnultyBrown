@@ -9,6 +9,7 @@ import common.service.HandshakeResponse;
 import echoservice.Config;
 
 import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -128,29 +129,72 @@ try {
 
     System.out.println("✅ Client handshake verified!");
     System.out.println("🤝 Session established with user: " + clientResp.getClientId());
-} catch (Exception decryptException) {
-    System.err.println("❌ Error during decryption: " + decryptException.getMessage());
-    decryptException.printStackTrace();
+
+    // 🧾 Step 4: Receive ClientReques
+   // Step 4: Receive ClientRequest and decrypt message
+   JSONObject clientReqJson = channel.receiveMessage();
+   System.out.println("📥 Received ClientRequest: " + clientReqJson);
+
+   String encryptedMessage = clientReqJson.getString("message");
+   byte[] encryptedMessageBytes = Base64.getDecoder().decode(encryptedMessage);
+   String ivMessage = clientReqJson.getString("iv");
+   byte[] ivMessageBytes = Base64.getDecoder().decode(ivMessage);
+
+   // Step 5: Decrypt the message from the client
+   System.out.println("🔐 Decrypting the client message...");
+   Cipher decryptMessageCipher = Cipher.getInstance("AES/GCM/NoPadding");
+   GCMParameterSpec messageSpec = new GCMParameterSpec(128, ivMessageBytes);
+
+   decryptMessageCipher.init(Cipher.DECRYPT_MODE, ks, messageSpec);
+   byte[] decryptedMessageBytes = decryptMessageCipher.doFinal(encryptedMessageBytes);
+   String decryptedMessage = new String(decryptedMessageBytes, StandardCharsets.UTF_8);
+   System.out.println("🔓 Decrypted Message: " + decryptedMessage);
+
+   // Step 6: Convert the message to uppercase
+   String upperCaseMessage = decryptedMessage.toUpperCase();
+   System.out.println("🆙 Uppercased Message: " + upperCaseMessage);
+
+   // Step 7: Encrypt the uppercase message before sending back
+   byte[] encryptedUppercaseMessage = encryptMessage(upperCaseMessage, ivMessageBytes,ks);
+
+   // Step 8: Prepare response JSON and send it back to the client
+   JSONObject echoResponseJson = new JSONObject();
+   echoResponseJson.put("iv", Base64.getEncoder().encodeToString(ivMessageBytes));
+   echoResponseJson.put("message", Base64.getEncoder().encodeToString(encryptedUppercaseMessage));
+
+   System.out.println("📤 Sending Echo Response: " + echoResponseJson.toString());
+   channel.sendMessage(echoResponseJson);
+
+} catch (Exception e) {
+    System.err.println("❌ Error decrypting message: " + e.getMessage());
+    throw new SecurityException("Error decrypting message: " + e.getMessage());
 }
 
-        } catch (Exception e) {
-            System.err.println("❌ Error during handshake: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-            
-            
+} catch (SecurityException e) {
+System.err.println("❌ Security Exception: " + e.getMessage());
+throw e; // Re-throw to ensure the exception is properly handled
+} catch (Exception e) {
+System.err.println("❌ General Exception: " + e.getMessage());
+throw new RuntimeException("An error occurred during the handshake process.", e);
+}
+}
 
-    private String combineIVandCipher(String iv, String cipherText) {
-        byte[] ivBytes = Base64.getDecoder().decode(iv);
-        byte[] cipherBytes = Base64.getDecoder().decode(cipherText);
-        byte[] combined = new byte[ivBytes.length + cipherBytes.length];
-        System.arraycopy(ivBytes, 0, combined, 0, ivBytes.length);
-        System.arraycopy(cipherBytes, 0, combined, ivBytes.length, cipherBytes.length);
-        return Base64.getEncoder().encodeToString(combined);
-    }
 
-    public static void sendToClient(JSONObject responseMsg) {
-        System.out.println("📤 Sending response to client: " + responseMsg);
-    }
+// Combine IV and cipher text for decryption
+private String combineIVandCipher(String iv, String cipherText) {
+byte[] ivBytes = Base64.getDecoder().decode(iv);
+byte[] cipherBytes = Base64.getDecoder().decode(cipherText);
+byte[] combined = new byte[ivBytes.length + cipherBytes.length];
+System.arraycopy(ivBytes, 0, combined, 0, ivBytes.length);
+System.arraycopy(cipherBytes, 0, combined, ivBytes.length, cipherBytes.length);
+return Base64.getEncoder().encodeToString(combined);
+}
+
+// Encrypt the message using AES-GCM
+private byte[] encryptMessage(String message, byte[] iv, SecretKeySpec ks) throws Exception {
+Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+cipher.init(Cipher.ENCRYPT_MODE, ks, spec);
+return cipher.doFinal(message.getBytes(StandardCharsets.UTF_8));
+}
 }
