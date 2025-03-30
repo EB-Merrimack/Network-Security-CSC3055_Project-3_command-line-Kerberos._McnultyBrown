@@ -426,6 +426,8 @@ Scanner sc = new Scanner(System.in);
 
     String responseText = new String(decryptedResponse, StandardCharsets.UTF_8);
     System.out.println("📥 Response: " + responseText);
+    System.out.println("thank you for using the service");
+    System.exit(0);
 }
 } catch (Exception e) {
 System.err.println("❌ Error during encrypted message exchange: " + e.getMessage());
