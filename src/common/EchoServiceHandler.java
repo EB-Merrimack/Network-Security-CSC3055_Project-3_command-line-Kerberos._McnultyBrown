@@ -135,6 +135,7 @@ try {
                     JSONObject echo = channel.receiveMessage();
                     Message echResponse = new Message("", "");
                     echResponse.deserialize(echo);
+                    System.out.println("📥 Received ClientResponse JSON: " + echo.toString());
 
 
    String encryptedMessage = echResponse.getMessage();
