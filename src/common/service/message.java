@@ -9,9 +9,10 @@ public class Message implements JSONSerializable {
     private String message;
 
     // Constructor with user
-    public Message(String iv, String message) {
-        this.iv = iv;
+    public Message(String message, String iv ) {
+       
         this.message = message;
+        this.iv = iv;
     }
 
     // Getters and setters (optional but useful)
