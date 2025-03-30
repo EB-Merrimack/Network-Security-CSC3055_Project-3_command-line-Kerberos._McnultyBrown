@@ -57,28 +57,34 @@ public class Channel implements JSONSerializable {
      * @throws IOException If the connection is closed by the peer.
      */
     public JSONObject receiveMessage() throws IOException {
-        String line = reader.readLine();
-        
-        // Check if the line received is null (i.e., connection closed)
-        if (line == null) {
-            System.out.println("Debug: No data received. Connection closed by peer.");
-            throw new IOException("Connection closed by peer");
+        StringBuilder messageBuilder = new StringBuilder();
+        String line;
+    
+        // Read lines until we get a complete message (i.e., valid JSON)
+        while ((line = reader.readLine()) != null) {
+            // Check if the connection is closed
+            if (line.isEmpty()) {
+                System.out.println("Debug: Connection closed by peer.");
+                throw new IOException("Connection closed by peer");
+            }
+    
+            // Accumulate lines to form the full message
+            messageBuilder.append(line.trim());
+    
+            // Check if the accumulated message is a valid JSON object
+            try {
+                JSONObject jsonObject = JsonIO.readObject(messageBuilder.toString());
+                System.out.println("Debug: Successfully deserialized into JSONObject: " + jsonObject);
+                return jsonObject;  // Successfully parsed the complete JSON object
+            } catch (Exception e) {
+                // Log that parsing failed and continue reading more lines
+                System.out.println("Debug: Incomplete message, continue reading...");
+            }
         }
     
-        // Print the raw received line for further debugging
-        System.out.println("Debug: Raw received data: " + line);
-    
-        // Try to read and parse the line into a JSONObject
-        JSONObject jsonObject = null;
-        try {
-            jsonObject = JsonIO.readObject(line); // Deserialize received string into JSONObject
-            System.out.println("Debug: Successfully deserialized into JSONObject: " + jsonObject);
-        } catch (Exception e) {
-            System.err.println("Error: Failed to deserialize received line into JSONObject.");
-            e.printStackTrace();
-        }
-        
-        return jsonObject;
+        // If we exit the loop and don't have a valid JSON object, log and return null
+        System.err.println("Error: Failed to receive a complete JSON message.");
+        return null;
     }
     
 
