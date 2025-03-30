@@ -6,6 +6,7 @@ import merrimackutil.util.NonceCache;
 import common.service.ClientHello;
 import common.service.ClientResponse;
 import common.service.HandshakeResponse;
+import common.service.Message;
 import echoservice.Config;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -61,13 +62,12 @@ public class SigningServiceHandler implements Runnable {
                 try {
                     System.out.println("📥 Waiting for ClientResponse...");
                     JSONObject echo = channel.receiveMessage();
-                    ClientResponse echResponse = new ClientResponse("", "", "", "");
-                    clientResp.deserialize(clientRespJson);
+                    Message echResponse = new Message("", "");
+                    echResponse.deserialize(echo);
 
-                    // 🔐 Session setup (similar to EchoServiceHandler, without nonce handling)                    
-
-                    byte[] msgIv = Base64.getDecoder().decode(ivBase64);
-                    byte[] ciphertext = Base64.getDecoder().decode(cipherBase64);
+                    // Step 1: Extract the encrypted message and IV
+                    byte[] ciphertext = Base64.getDecoder().decode(echResponse.getMessage());
+                    byte[] msgIv = Base64.getDecoder().decode(echResponse.getIv());
 
                     // Step 2: Decrypt the encrypted message
                     // In this signing service, we just need the plain text message

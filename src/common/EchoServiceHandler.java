@@ -6,6 +6,7 @@ import merrimackutil.util.NonceCache;
 import common.service.ClientHello;
 import common.service.ClientResponse;
 import common.service.HandshakeResponse;
+import common.service.Message;
 import echoservice.Config;
 
 import javax.crypto.Cipher;
@@ -130,14 +131,15 @@ try {
     System.out.println("✅ Client handshake verified!");
     System.out.println("🤝 Session established with user: " + clientResp.getClientId());
 
-    // 🧾 Step 4: Receive ClientReques
-   // Step 4: Receive ClientRequest and decrypt message
-   JSONObject clientReqJson = channel.receiveMessage();
-   System.out.println("📥 Received ClientRequest: " + clientReqJson);
+      System.out.println("📥 Waiting for ClientResponse...");
+                    JSONObject echo = channel.receiveMessage();
+                    Message echResponse = new Message("", "");
+                    echResponse.deserialize(echo);
 
-   String encryptedMessage = clientReqJson.getString("message");
+
+   String encryptedMessage = echResponse.getMessage();
    byte[] encryptedMessageBytes = Base64.getDecoder().decode(encryptedMessage);
-   String ivMessage = clientReqJson.getString("iv");
+   String ivMessage = echResponse.getIv();
    byte[] ivMessageBytes = Base64.getDecoder().decode(ivMessage);
 
    // Step 5: Decrypt the message from the client
