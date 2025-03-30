@@ -90,7 +90,7 @@ public class EchoServiceHandler implements Runnable {
             channel.sendMessage(response);
 
           // 🧾 Step 3: Receive ClientResponse
-System.out.println("📥 Waiting for ClientResponse...");
+System.out.println("📥 Waiting for ClientResponse..."+channel);
 JSONObject clientRespJson = channel.receiveMessage();
 System.out.println("📥 Received ClientResponse JSON: " + clientRespJson.toString());
 
@@ -131,7 +131,7 @@ try {
     System.out.println("✅ Client handshake verified!");
     System.out.println("🤝 Session established with user: " + clientResp.getClientId());
 
-      System.out.println("📥 Waiting for ClientResponse...");
+      System.out.println("📥 Waiting for ClientResponse..."+channel);
                     JSONObject echo = channel.receiveMessage();
                     System.out.println("📥 Received ClientResponse JSON: " + echo.toString());
                     Message echResponse = new Message("", "");
