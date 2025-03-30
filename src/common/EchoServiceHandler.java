@@ -133,6 +133,7 @@ try {
 
       System.out.println("📥 Waiting for ClientResponse...");
                     JSONObject echo = channel.receiveMessage();
+                    System.out.println("📥 Received ClientResponse JSON: " + echo.toString());
                     Message echResponse = new Message("", "");
                     echResponse.deserialize(echo);
                     System.out.println("📥 Received ClientResponse JSON: " + echo.toString());
