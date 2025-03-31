@@ -131,12 +131,7 @@ public class KDCClient {
 
                 String encryptedSessionKey = resp.getSessionKey();
                 String base64SessionKey = CryptoUtils.decryptAESGCM(encryptedSessionKey, password);
-                System.out.println("🔑 [CLIENT] Decrypted Session Key (base64): " + base64SessionKey);
 
-
-
-                System.out.println("Ticket and session key received");
-                System.out.println("Session key (base64): " + base64SessionKey);
 
                 connectToService(resp, base64SessionKey);
 
@@ -503,7 +498,7 @@ Scanner sc = new Scanner(System.in);
     byte[] decryptedResponse = decryptCipher.doFinal(respCipher);
 
     String responseText = new String(decryptedResponse, StandardCharsets.UTF_8);
-    System.out.println("📥 Response: " + responseText);
+    System.out.println("Response: " + responseText);
     System.out.println("thank you for using the service");
     System.exit(0);
 }
