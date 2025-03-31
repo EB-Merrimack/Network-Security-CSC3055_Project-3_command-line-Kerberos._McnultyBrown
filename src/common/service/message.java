@@ -3,7 +3,7 @@ package common.service;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.json.types.JSONType;
 import merrimackutil.json.JSONSerializable;
-
+//Message class utilized within echoservice
 public class Message implements JSONSerializable {
     private String iv;
     private String message;
@@ -20,14 +20,26 @@ public class Message implements JSONSerializable {
         return iv;
     }
 
+    /**
+     * Set the initialization vector for the message
+     * @param iv the initialization vector
+     */
     public void setIv(String iv) {
         this.iv = iv;
     }
 
+    /**
+     * Get the message being sent
+     * @return the message
+     */
     public String getMessage() {
         return message;
     }
 
+    /**
+     * Set the message being sent
+     * @param message the message
+     */
     public void setMessage(String message) {
         this.message = message;
     }

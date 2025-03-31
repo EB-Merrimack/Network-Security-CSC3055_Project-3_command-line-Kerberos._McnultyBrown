@@ -20,6 +20,24 @@ public class HandshakeResponse implements JSONSerializable {
         this.encryptedNonce = encryptedNonce;
     }
 
+    /**
+     * Serialize this HandshakeResponse to a JSONType.
+     * 
+     * The serialized JSONType is a JSONObject with the following fields:
+     * 
+     * <ul>
+     * <li>type: A string representing the type of the message, which is
+     *     "Handshake Response".
+     * <li>nonce: A string representing the Ns, the base64-encoded nonce.
+     * <li>service: A string representing the name of the service.
+     * <li>iv: A string representing the base64-encoded initialization vector
+     *     (IV) used in the encryption of the encryptedNonce.
+     * <li>encryptedNonce: A string representing the encrypted nonce, which is
+     *     the plaintext of the encrypted nonce.
+     * </ul>
+     * 
+     * @return The JSONType containing the serialized HandshakeResponse.
+     */
     @Override
     public JSONType toJSONType() {
         JSONObject obj = new JSONObject();
@@ -31,6 +49,27 @@ public class HandshakeResponse implements JSONSerializable {
         return obj;
     }
 
+    /**
+     * Deserialize a HandshakeResponse from a JSONType.
+     * 
+     * This method expects the JSONType to be a JSONObject with the following
+     * fields:
+     * 
+     * <ul>
+     * <li>type: A string representing the type of the message, which is
+     *     "Handshake Response".
+     * <li>nonce: A string representing the Ns, the base64-encoded nonce.
+     * <li>service: A string representing the name of the service.
+     * <li>iv: A string representing the base64-encoded initialization vector
+     *     (IV) used in the encryption of the encryptedNonce.
+     * <li>encryptedNonce: A string representing the encrypted nonce, which is
+     *     the plaintext of the encrypted nonce.
+     * </ul>
+     * 
+     * @param json The JSONType containing the serialized HandshakeResponse.
+     * @throws InvalidObjectException If the JSONType is not a JSONObject, or
+     *             if the JSONObject does not contain the expected fields.
+     */
     @Override
     public void deserialize(JSONType json) throws InvalidObjectException {
         if (!(json instanceof JSONObject)) {
@@ -44,18 +83,36 @@ public class HandshakeResponse implements JSONSerializable {
         this.encryptedNonce = obj.getString("encryptedNonce");
     }
 
+    /**
+     * Get the nonce included with the handshake response, as a base64-encoded string.
+     * @return the nonce as a base64-encoded string
+     */
     public String getNonce() {
         return nonce;
     }
 
+    /**
+     * Get the name of the service associated with the handshake response.
+     * @return the name of the service
+     */
     public String getService() {
         return service;
     }
 
+    /**
+     * Get the initialization vector (IV) used in the encryption of the
+     * encryptedNonce, as a base64-encoded string.
+     * @return the IV as a base64-encoded string
+     */
     public String getIv() {
         return iv;
     }
 
+    /**
+     * Get the encrypted nonce from the handshake response, as a base64-encoded
+     * string. This is the ciphertext of the encrypted nonce.
+     * @return the encrypted nonce as a base64-encoded string
+     */
     public String getEncryptedNonce() {
         return encryptedNonce;
     }

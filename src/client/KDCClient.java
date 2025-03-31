@@ -42,6 +42,13 @@ public class KDCClient {
     private static String kdcHost;
     private static int kdcPort;
 
+    /**
+     * Send a UsageMessage over the given channel, then exit the program.
+     * This method is intended to be used when the client needs to send
+     * a usage message to the service, such as when the user provides invalid
+     * command-line arguments.
+     * @param channel The Channel over which to send the usage message.
+     */
    public static void usageClient(Channel channel) {
         // Create an instance of the UsageMessage class
         UsageMessage usageMessage = new UsageMessage();
@@ -55,6 +62,12 @@ public class KDCClient {
 
 
     
+    /**
+     * Prompt the user for a username. This method will continue to
+     * prompt the user until a non-empty string is entered.
+     * @param msg The prompt message to display to the user.
+     * @return The username entered by the user.
+     */
     public static String promptForUsername(String msg) {
         String usrnm;
         Console cons = System.console();
@@ -76,6 +89,17 @@ public class KDCClient {
 
         return passwd;
     }
+    /**
+     * Main method for the KDC client.
+     * @param args
+     *        Command line arguments. The client accepts the following arguments:
+     *        <ul>
+     *            <li> -u, --user        The username to use for authentication.
+     *            <li> -s, --service The service name to use for authentication.
+     *        </ul>
+     *        If the username is not provided, the client will prompt the user to
+     *        enter a username.
+     */
     public static void main(String[] args) {
         Map<String, String> argsMap = processArgs(args);
            // If user is not provided in arguments, prompt for username
@@ -188,6 +212,19 @@ public class KDCClient {
 
     
 
+/**
+ * Retrieves the host information (address and port) for the specified host name.
+ *
+ * If the "hosts.json" file does not exist, a default file is created with 
+ * pre-defined host entries. The method then loads the host information from 
+ * this file using the `HostsDatabase` class.
+ *
+ * @param hostName The name of the host whose information is to be retrieved.
+ * @return A Tuple containing the host address as a String and port as an Integer.
+ * @throws RuntimeException If the host is unknown or if there is an error loading 
+ *         the host file, the method prints an error message and exits the program.
+ */
+
     public static Tuple<String, Integer> getHostInfo(String hostName) {
         File file = new File("hosts.json");
 
@@ -244,6 +281,24 @@ public class KDCClient {
         }
     }
 
+    /**
+     * Authenticate with the KDC using RFC 1994.
+     *
+     * Connects to the KDC at the given host and port, and sends an identity
+     * claim.  The KDC responds with a challenge, which this function computes a
+     * hash of using the given password.  The hash is then sent back to the
+     * KDC, which responds with a boolean indicating whether the password was
+     * valid.  If the password was valid, this function returns the open
+     * connection to the KDC.  Otherwise, it closes the connection and returns
+     * null.
+     *
+     * @param username The username to authenticate with.
+     * @param password The password to use for authentication.
+     * @param host The hostname of the KDC.
+     * @param port The port of the KDC.
+     * @return An open Channel to the KDC if authentication was successful, or
+     *         null if authentication failed.
+     */
     public static Channel authenticateWithKDC(String username, String password, String host, int port) {
         try {
             // Open connection manually
@@ -355,7 +410,6 @@ public class KDCClient {
 
         // Step 1: Derive session key from password
         byte[] sessionKeyBytes = Base64.getDecoder().decode(base64SessionKey);
-        System.out.println("🔑 [CLIENT] Using session key bytes: " + Base64.getEncoder().encodeToString(sessionKeyBytes));
         SecretKeySpec ks = new SecretKeySpec(sessionKeyBytes, "AES");
 
         // Step 2: Generate fresh nonce Nc
@@ -367,7 +421,6 @@ public class KDCClient {
         JSONObject ticketJson = (JSONObject) response.getTicket().toJSONType();
         ClientHello hello = new ClientHello(ticketJson, base64Nc);
         serviceChannel.sendMessage(hello);
-        System.out.println("📤 Sent ClientHello");
 
         // Step 4: Receive HandshakeResponse
         JSONObject responseJson = serviceChannel.receiveMessage();
@@ -401,7 +454,6 @@ public class KDCClient {
             Base64.getEncoder().encodeToString(encNs)
         );
         serviceChannel.sendMessage(finalResp);
-        System.out.println("📤 Sent ClientResponse");
 
         System.out.println("🟢 Secure echo session started. Type a message or /quit to exit.");
 Scanner sc = new Scanner(System.in);

@@ -3,7 +3,6 @@ package common;
 import java.io.*;
 import java.net.Socket;
 
-import client.EchoClient;
 import merrimackutil.json.JsonIO;
 import merrimackutil.json.JSONSerializable;
 import merrimackutil.json.types.JSONObject;
@@ -13,8 +12,6 @@ public class Channel implements JSONSerializable {
     private final Socket socket;
     private final BufferedReader reader;
     private final PrintWriter writer;
-    private JSONObject echoedMessage = null; // Holds the echoed message
-    private boolean messageAvailable = false; // Flag to indicate when a message is available
 
 
     public Channel(Socket socket) throws IOException {
@@ -30,7 +27,7 @@ public class Channel implements JSONSerializable {
      * @param message The message to send, as a JSONObject.
      */
     public void sendMessage(JSONObject jsonMessage) {
-        writer.println(jsonMessage.getFormattedJSON());
+        writer.println(jsonMessage.getFormattedJSON().toString());
     }
 
     /**
@@ -70,18 +67,22 @@ public class Channel implements JSONSerializable {
     
             // Check if the accumulated message is a valid JSON object
             try {
-                JSONObject jsonObject = JsonIO.readObject(messageBuilder.toString());
-                return jsonObject;  // Successfully parsed the complete JSON object
+                // Use JsonIO's isObject() to validate before parsing
+                if (JsonIO.readObject(messageBuilder.toString()) != null && (JsonIO.readObject(messageBuilder.toString()).isObject()==true)) {
+                    JSONObject jsonObject = JsonIO.readObject(messageBuilder.toString());
+                    return jsonObject; // Successfully parsed the complete JSON object
+                }
             } catch (Exception e) {
-              
+                // If the message is not a valid JSON object, continue reading
+                System.err.println("json is parsing please wait " );
+                continue;
             }
         }
     
-        // If we exit the loop and don't have a valid JSON object, log and return null
-        System.err.println("Error: Failed to receive a complete JSON message.");
-        return null;
+        // If we exit the loop without returning, there was no valid JSON
+        throw new IOException("No valid JSON received");
     }
-    
+
 
     /**
      * Close the channel and associated socket.
@@ -131,10 +132,23 @@ public class Channel implements JSONSerializable {
         return new JSONObject();
     }
 
+    /**
+     * Retrieves the PrintWriter associated with this Channel.
+     * 
+     * @return The PrintWriter instance used for sending messages.
+     */
+
     public PrintWriter getWriter() {
         return writer; // Return the PrintWriter instance to allow other methods to use it
     }
 
+    /**
+     * Retrieves the input stream of the socket associated with this Channel.
+     * 
+     * @return The input stream of the socket.
+     * @throws UnsupportedOperationException If an IOException is thrown when
+     *             attempting to get the input stream.
+     */
     public InputStream getInputStream() {
         try {
             return socket.getInputStream(); // Return the input stream of the socket
@@ -142,6 +156,14 @@ public class Channel implements JSONSerializable {
             throw new UnsupportedOperationException("Error getting InputStream: " + e.getMessage());
         }
     }
+
+    /**
+     * Retrieves the output stream of the socket associated with this Channel.
+     * 
+     * @return The output stream of the socket.
+     * @throws UnsupportedOperationException If an IOException is thrown when
+     *             attempting to get the output stream.
+     */
 
     public OutputStream getOutputStream() {
         try {
@@ -151,21 +173,6 @@ public class Channel implements JSONSerializable {
         }
     }
 
-    /**
-     * This method sends an echo message, containing both the IV and message.
-     * The method assumes that the message and IV are properly formatted in JSON.
-     * 
-     * @param iv The Initialization Vector (IV) for encryption.
-     * @param message The message to send, typically a JSON object.
-     */
-   /**
-     * Sends an echo message containing the IV and the encrypted message.
-     * 
-     * @param msgObj The JSON object that contains both the IV and encrypted message.
- * @throws Exception 
-     */
-
-    
    
     
 }
