@@ -450,7 +450,7 @@ public class KDCClient {
         );
         serviceChannel.sendMessage(finalResp);
 
-        System.out.println("🟢 Secure echo session started. Type a message or /quit to exit.");
+        System.out.println("🟢 Secure service session started. Type a message or /quit to exit.");
 Scanner sc = new Scanner(System.in);
 
   // Start the communication phase
