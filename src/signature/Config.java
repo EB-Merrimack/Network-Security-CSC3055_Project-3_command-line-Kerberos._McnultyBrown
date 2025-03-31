@@ -1,12 +1,18 @@
 package signature;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.InvalidObjectException;
-import java.security.PrivateKey;
 import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.PrivateKey;
 import java.security.interfaces.RSAPrivateKey;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 
 import merrimackutil.json.JSONSerializable;
+import merrimackutil.json.JsonIO;
 import merrimackutil.json.types.JSONObject;
 import merrimackutil.json.types.JSONType;
 
@@ -17,13 +23,6 @@ public class Config implements JSONSerializable {
     public String serviceSecret;
     public String signingKey; // Base64 encoded signing key
 
-    /**
-     * Deserializes the configuration from the provided JSONType.
-     * 
-     * @param json The JSONType containing the serialized configuration.
-     * @throws InvalidObjectException If the JSONType is not a JSONObject, or if
-     *             the JSONObject does not contain the expected fields.
-     */
     @Override
     public void deserialize(JSONType json) throws InvalidObjectException {
         if (!(json instanceof JSONObject)) {
@@ -31,13 +30,11 @@ public class Config implements JSONSerializable {
         }
         JSONObject jsonObject = (JSONObject) json;
         
-        // Deserialize the fields
         this.port = jsonObject.getInt("port");
         this.debug = jsonObject.getBoolean("debug");
         this.serviceName = jsonObject.getString("service-name");
         this.serviceSecret = jsonObject.getString("service-secret");
         
-        // Deserialize the signing key
         if (jsonObject.containsKey("signing-key")) {
             this.signingKey = jsonObject.getString("signing-key");
         } else {
@@ -45,11 +42,6 @@ public class Config implements JSONSerializable {
         }
     }
 
-    /**
-     * Serializes the configuration to a JSONType.
-     * 
-     * @return The JSONType containing the serialized configuration.
-     */
     @Override
     public JSONType toJSONType() {
         JSONObject jsonObject = new JSONObject();
@@ -57,27 +49,47 @@ public class Config implements JSONSerializable {
         jsonObject.put("debug", this.debug);
         jsonObject.put("service-name", this.serviceName);
         jsonObject.put("service-secret", this.serviceSecret);
-        jsonObject.put("signing-key", this.signingKey);  // Add signing key to JSON output
+        jsonObject.put("signing-key", this.signingKey);
         return jsonObject;
     }
 
-    /**
-     * Returns the signing key as a PrivateKey object.
-     * The signing key is expected to be Base64 encoded in the configuration.
-     * 
-     * @return The PrivateKey object for signing.
-     * @throws InvalidObjectException If the signing key is invalid.
-     */
     public PrivateKey getSigningKey() throws InvalidObjectException {
         try {
-            // Decode the Base64 encoded signing key
             byte[] decodedKey = Base64.getDecoder().decode(this.signingKey);
-
-            // Use KeyFactory to generate the PrivateKey
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            return keyFactory.generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(decodedKey));
+            return keyFactory.generatePrivate(new PKCS8EncodedKeySpec(decodedKey));
         } catch (Exception e) {
             throw new InvalidObjectException("Failed to load signing key: " + e.getMessage());
         }
     }
+
+    /**
+     * Generates a new RSA private key, stores it in the config, and returns it.
+     * 
+     * @return A newly generated RSAPrivateKey.
+     * @throws InvalidObjectException If key generation fails.
+     */
+    public RSAPrivateKey createNewPrivateKey() throws InvalidObjectException {
+        try {
+            KeyPairGenerator keyPairGen = KeyPairGenerator.getInstance("RSA");
+            keyPairGen.initialize(2048);
+            KeyPair keyPair = keyPairGen.generateKeyPair();
+    
+            RSAPrivateKey newPrivateKey = (RSAPrivateKey) keyPair.getPrivate();
+            this.signingKey = Base64.getEncoder().encodeToString(newPrivateKey.getEncoded());
+    
+            // Save updated config to file
+            saveConfig();
+    
+            return newPrivateKey;
+        } catch (Exception e) {
+            throw new InvalidObjectException("Failed to generate new signing key: " + e.getMessage());
+        }
+    }
+    public void saveConfig() throws IOException {
+        File file = new File("src/signature/config.json");
+        JsonIO.writeFormattedObject(this, file);  // Use the Config object directly
+    }
+    
+
 }

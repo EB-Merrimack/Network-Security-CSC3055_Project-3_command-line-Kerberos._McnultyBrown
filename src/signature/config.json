@@ -1,8 +1,8 @@
 {
-    "port": 5002,
-    "debug": false,
-    "service-name": "signatureservice",
-    "service-secret": "servicepass",
-    "signing-key": "<PASTE_BASE64_RSA_PRIVATE_KEY_HERE>"
-  }
-  
+   "service-name" : "signatureservice",
+   "service-secret" : "servicepass",
+   "debug" : false,
+   "port" : 5002,
+   "signing-key" : "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC+TDssdRQQlSd/1PBpM/9xkMxvVZZ2kD/cKU/Xj6nXno6y5fQ3lLaouDHwwNPf4L3VVTLZfcuLv12bUiHCMuvD6U8BEwtKPQM9yxGyCiKEe2rMd4lle5uaviV/Iwcs4pPiuAioXnU1hnAxd/MUftBwc23nQYQDwORX7Rq7x2jMa/bfCky2AeeZNLnnBYBTXTyOWHnWJvPhBPaAATvExAjD1x+RZF6z8qDtrYciti0ZmZZtutDBj2g1xSdoJOhG4UahbYAV7nlAjRmXbVi3+kuxu3O7Xz1Jr2ABlh2QDg09kCaNmfle3+VlSAr469M5BWqhunPV5EgVIHiHsbqOVPWzAgMBAAECggEANpB2ISO66pxR9Jnyiz/RHVeW/s9sMrfez7p6vcTgPsakhRBhi7RVAaC7FRy9Q8LVu79PssQaoonvBbOxoVTnfEfAEv9Ka/F9pfC9tK6qQhF/SHx4BYTBU8f0yXUaQBkBrW72cIyREBVpww1xQi2wh6XZXAdRmp/q+XkvgqtFVeOaSReZ94NWy1Bd7//e16XHb1mvqcDLxDIa5VZtYGKXpBqO0X0sYT2OUZOr7GsSgiA3TIB1H+6cNzaHw0PEeDEOJ6jNko10C9KKvJ/SEPFoj/uNrD/lrV85pVg2es/SjykrNbXJEBNAMm7+vackV/GWwLYuBvFCjHA7hkZ9Cfg5ZQKBgQDOHF+zKhc1hWB8P+4xhsvjfZlwmGQCSDWPfZrk2w4cu3cYOhIvsdLh4BWrFkzdrtexsfR9nMqEJotd8/I6yjIP7cWNivta6fkN0YSy/dQzqvhktkKMACI9GVskdnhJySi991ZGRQJZ5Cpwq6Naj7zHL9whxL4rs0Bg0hsCCS1zhwKBgQDsXADvlsiuYG4VgAy0Th9gEOM7kqskznr97YEUMip7SNuUD6SNGRR3KyfXy/zGfNwLUXS2oN+CL6cBGb8Wr5ERUttrYeHbSbeBnj59wow/SHjGsnrPLENHLYwKSQYMKW62W0axaCdPjZQG1DVrW2hidUgu3O8ieByDDZZnNfPPdQKBgBs2mdghDZFue8/L7Roy7wapVbINHN9EQ3YfomznE1Tt14qmWDJd6zcRjCrbtehrJmV61oojQoXyROJxzCDBA50gyr2mhQt66vxNFpU/eF4eC8/YVK8BcYPZrjQBRF6RpcR3PLfocqgFvSjFMLtLUSSHiCwZOvawIybldtVs+shPAoGAUXXIEMr78TVk214dgsrl/1rypeZ/u5i6ROflM8uyXnkWzGmzwbliF0w1WCeCv/nqcLArNIIvZhP8T+HKvQvXSIww+Upr6AL5DuA2E2vIoEre7UQ4FUzhBxgIisbuIaTp9klxDNWjrsRRvyTGIHEJgd1/+j7E4DFbSkOVkY7Dr70CgYEAwx7N/T/q3SOTZlFOJHSz34HuC8xhnuFARI3+0Zw8nr2vYi0GBRoSMHN48SF8a9iT2kQb6mRjrWKB2/45ACFujcsv4ZSS0VAYbkbk4KHvNt73j6KJSIpPriTdzNy2isrQOuheLqIJVDaILeEbmguT5ZCp9Mj9GBatYZHV9IsgvGc="
+}
+
