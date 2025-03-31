@@ -282,7 +282,6 @@ public class KDCClient {
             result.deserialize(resultJson);
     
             if (result.getResult()) {
-                System.out.println("Authentication successful");
                 return channel; // return open channel
             } else {
                 System.out.println("Authentication failed: Invalid password");
@@ -297,6 +296,11 @@ public class KDCClient {
         }
     }
 
+    /**
+     * Converts a byte array to a hexadecimal string.
+     * @param bytes The byte array to convert.
+     * @return A string containing the hexadecimal representation of the byte array.
+     */
     public static String bytesToHex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();
         for (byte b : bytes) {
@@ -305,6 +309,12 @@ public class KDCClient {
         return sb.toString();
     }
 
+    /**
+     * Combines an initialization vector (IV) and cipher text into a single base64-encoded string.
+     * @param iv The base64-encoded IV.
+     * @param cipherText The base64-encoded cipher text.
+     * @return A new string containing the combined IV and cipher text, both still base64-encoded.
+     */
     public static String combineIVandCipher(String iv, String cipherText) {
         byte[] ivBytes = Base64.getDecoder().decode(iv);
         byte[] cipherBytes = Base64.getDecoder().decode(cipherText);
@@ -315,6 +325,28 @@ public class KDCClient {
     }
 
 
+    /**
+     * Connect to the service and establish a secure communication channel.
+     * 
+     * This method will establish a secure channel with the service by performing the
+     * necessary steps of the protocol. It will first generate a fresh nonce Nc and
+     * send a ClientHello to the service with the ticket and Nc. Then, it will receive
+     * a HandshakeResponse from the service and decrypt it to obtain the nonce Nc.
+     * If the decrypted nonce does not match the original nonce Nc, the method will
+     * throw a SecurityException.
+     * 
+     * After verifying the nonce, the method will generate a fresh nonce Nr and send
+     * a ClientResponse to the service with the nonce Nr and the encrypted nonce Ns.
+     * Finally, the method will start a communication phase where it will read
+     * messages from the user, encrypt them using AES-GCM, and send them to the
+     * service. The method will also receive encrypted responses from the service,
+     * decrypt them, and print them to the console.
+     * 
+     * @param response the response from the KDC containing the ticket and session key
+     * @param base64SessionKey the session key in base64 encoding
+     * @throws IOException if an I/O error occurs during the communication with the service
+     * @throws GeneralSecurityException if a security error occurs during the protocol
+     */
     public static void connectToService(TicketResponse response, String base64SessionKey) {
     try {
         Tuple<String, Integer> serviceHost = getHostInfo(service);
@@ -341,18 +373,14 @@ public class KDCClient {
         JSONObject responseJson = serviceChannel.receiveMessage();
         HandshakeResponse handshake = new HandshakeResponse("", "", "", "");
         handshake.deserialize(responseJson);
-        System.out.println("📥 Received HandshakeResponse");
 
         // Step 5: Decrypt Enc(Nc) and verify it matches original
         String encNcCombined = combineIVandCipher(handshake.getIv(), handshake.getEncryptedNonce());
         byte[] decrypted = CryptoUtils.decryptAESGCMToBytes(encNcCombined, ks);
-        System.out.println("🧾 [CLIENT] Original Nc: " + base64Nc);
-        System.out.println("🔓 [CLIENT] Decrypted enc(Nc): " + Base64.getEncoder().encodeToString(decrypted));
         if (!Base64.getEncoder().encodeToString(decrypted).equals(base64Nc)) {
             throw new SecurityException("❌ Server failed to prove knowledge of session key.");
         }
 
-        System.out.println("✅ Verified encrypted Nc matches");
 
         // Step 6: Generate fresh Nr and send ClientResponse
         byte[] nonceR = new byte[16];
@@ -410,12 +438,10 @@ Scanner sc = new Scanner(System.in);
     JSONObject msgObj = new JSONObject();
     msgObj.put("message", Base64.getEncoder().encodeToString(encryptedMessage));
     msgObj.put("iv", Base64.getEncoder().encodeToString(msgIv));
-    System.out.println("Message JSON to send: " + msgObj);  // Indented JSON output
 
     // Send the encrypted message to EchoService
     serviceChannel.sendMessage(msgObj);
-    System.out.println("📤 Sent encrypted message to service"+service +"and service chanel"+serviceChannel);
-    // Receive encrypted response
+  // Receive encrypted response
     JSONObject respJson = serviceChannel.receiveMessage();
     byte[] respIv = Base64.getDecoder().decode(respJson.getString("iv"));
     byte[] respCipher = Base64.getDecoder().decode(respJson.getString("message"));

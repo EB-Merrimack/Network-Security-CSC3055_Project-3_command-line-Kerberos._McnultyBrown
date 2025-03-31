@@ -31,7 +31,6 @@ public class Channel implements JSONSerializable {
      */
     public void sendMessage(JSONObject jsonMessage) {
         writer.println(jsonMessage.getFormattedJSON());
-        System.out.println("Sent: " + jsonMessage.getFormattedJSON());
     }
 
     /**
@@ -43,7 +42,6 @@ public class Channel implements JSONSerializable {
     public void sendMessage(JSONSerializable message) {
         // Use JsonIO.writeSerializedObject to serialize and send the JSON object
         JsonIO.writeSerializedObject(message, writer);
-        System.out.println("Sent: " + message.toString());
     }
 
     /**
@@ -64,7 +62,6 @@ public class Channel implements JSONSerializable {
         while ((line = reader.readLine()) != null) {
             // Check if the connection is closed
             if (line.isEmpty()) {
-                System.out.println("Debug: Connection closed by peer.");
                 throw new IOException("Connection closed by peer");
             }
     
@@ -74,11 +71,9 @@ public class Channel implements JSONSerializable {
             // Check if the accumulated message is a valid JSON object
             try {
                 JSONObject jsonObject = JsonIO.readObject(messageBuilder.toString());
-                System.out.println("Debug: Successfully deserialized into JSONObject: " + jsonObject);
                 return jsonObject;  // Successfully parsed the complete JSON object
             } catch (Exception e) {
-                // Log that parsing failed and continue reading more lines
-                System.out.println("Debug: Incomplete message, continue reading...");
+              
             }
         }
     
